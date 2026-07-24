@@ -4,9 +4,9 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SimpVid_Gist_WPF"
-        mc:Ignorable="d" FontFamily="Segoe UI Variable" WindowStyle="None"
+        mc:Ignorable="d" WindowStyle="None"
         Title="SimpVid Gist"
-        Height="680" Width="450">
+        Height="750" Width="450">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="50"/>
@@ -30,7 +30,6 @@
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="DarkRed"/>
                             </Trigger>
-
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
@@ -56,9 +55,7 @@
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
-
             </Button>
-
         </DockPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1">
@@ -89,14 +86,15 @@
 
                 <Button Background="Violet" x:Name="SummarizeButton" Margin="0,0,0,20" Click="SummarizeButton_Click" IsEnabled="False" HorizontalAlignment="Center">
                     Summarize Transcript
-
                 </Button>
 
-                <TextBlock Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="Bold">Transcript</TextBlock>
-                <TextBox x:Name="TranscriptTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True"/>
+                <GroupBox Header="Transcript">
+                    <TextBox x:Name="TranscriptTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True"/>
+                </GroupBox>
 
-                <TextBlock Margin="0,10,0,10" TextWrapping="Wrap" FontWeight="Bold">Summary</TextBlock>
-                <TextBox x:Name="SummaryTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True"/>
+                <GroupBox Header="Summary">
+                    <TextBox x:Name="SummaryTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True"/>
+                </GroupBox>
             </StackPanel>
         </ScrollViewer>
 
