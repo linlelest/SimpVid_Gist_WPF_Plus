@@ -240,7 +240,7 @@ namespace SimpVid_Gist_WPF
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"保存失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Failed to save: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         /// <summary>
