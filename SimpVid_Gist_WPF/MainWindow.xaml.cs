@@ -1,21 +1,13 @@
-﻿using System.IO;
+﻿using Microsoft.Win32;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using YoutubeExplode;
-using YoutubeExplode.Videos.ClosedCaptions;
-using Microsoft.Win32;
-using System.Xml;
 
 
 namespace SimpVid_Gist_WPF
@@ -152,20 +144,29 @@ namespace SimpVid_Gist_WPF
         /// </summary>
         private async Task<string> CallAiApiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName)
         {
-            // Build a standard OpenAI compatible Payload
-            var requestBody = new
+            // 使用 JsonObject 避免反射序列化异常
+            var requestBody = new JsonObject
             {
-                model = modelName,
-                messages = new[]
-                {
-                    new { role = "system", content = "You are an expert assistant. Summarize the following YouTube transcript into clear, structured paragraphs. You may use key bullet points." },
-                    new { role = "user", content = transcriptContent }
-                },
-                temperature = 0.5
+                ["model"] = modelName,
+                ["messages"] = new JsonArray
+        {
+            new JsonObject
+            {
+                ["role"] = "system",
+                ["content"] = "You are an expert assistant. Summarize the following YouTube transcript into clear, structured paragraphs. You may use key bullet points."
+            },
+            new JsonObject
+            {
+                ["role"] = "user",
+                ["content"] = transcriptContent
+            }
+        },
+                ["temperature"] = 0.5
             };
-            string jsonPayload = JsonSerializer.Serialize(requestBody);
 
-            using (var request = new HttpRequestMessage(HttpMethod.Post, apiUrl)) // Use user specified URL
+            string jsonPayload = requestBody.ToJsonString();
+
+            using (var request = new HttpRequestMessage(HttpMethod.Post, apiUrl))
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
                 request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
@@ -235,7 +236,7 @@ namespace SimpVid_Gist_WPF
                 // 5. 写入文件（此处使用 UTF-8 编码，若文件已存在则覆盖）
                 File.WriteAllText(filePath, content, Encoding.UTF8);
                 MessageBox.Show($"Successfully saved.\nAt: {filePath}\nThe next time you open SimpVid Gist, your data will be automatically read.", "", MessageBoxButton.OK, MessageBoxImage.Information);
-            
+
             }
             catch (Exception ex)
             {
@@ -334,7 +335,7 @@ namespace SimpVid_Gist_WPF
             // 1. If two fields are empty, do not export.
             if (!SummarizeButton.IsEnabled)
             {
-                MessageBox.Show("Please extract transcript first","Nothing Saved",MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Please extract transcript first", "Nothing Saved", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
