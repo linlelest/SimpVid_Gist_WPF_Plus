@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using YoutubeExplode;
 
@@ -44,8 +45,12 @@ namespace SimpVid_Gist_WPF
                 // 1. Fetch the caption tracks available for the video
                 var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(videoInput);
 
-                // 2. Try to grab English ("en") or grab the first available track
-                var trackInfo = trackManifest.GetByLanguage("en") ?? trackManifest.Tracks[0];
+                // 2. Grab track with specified language
+                string targetLangCode = (LanguageCodeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
+
+                var trackInfo = trackManifest.GetByLanguage(targetLangCode)
+                                ?? trackManifest.Tracks.FirstOrDefault();
+
 
                 if (trackInfo != null)
                 {
@@ -72,7 +77,7 @@ namespace SimpVid_Gist_WPF
                 }
                 else
                 {
-                    TranscriptTextBox.Text = "No transcript or captions found for this video.";
+                    TranscriptTextBox.Text = $"No transcript or captions found for this video in language {targetLangCode}.";
                 }
             }
             catch (Exception ex)
@@ -218,22 +223,22 @@ namespace SimpVid_Gist_WPF
         {
             try
             {
-                // 1. 获取 AppData\Roaming 路径
+                // 获取 AppData\Roaming 路径
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
-                // 2. 拼接你自己的应用程序文件夹名称（防止污染根目录）
+                // 拼接你自己的应用程序文件夹名称（防止污染根目录）
                 string myAppFolder = System.IO.Path.Combine(appDataPath, "SimpVid Gist");
 
-                // 3. 检查文件夹是否存在，如果不存在则创建
+                // 检查文件夹是否存在，如果不存在则创建
                 if (!Directory.Exists(myAppFolder))
                 {
                     Directory.CreateDirectory(myAppFolder);
                 }
 
-                // 4. 拼接完整的文件路径
+                // 拼接完整的文件路径
                 string filePath = System.IO.Path.Combine(myAppFolder, fileName);
 
-                // 5. 写入文件（此处使用 UTF-8 编码，若文件已存在则覆盖）
+                // 写入文件（此处使用 UTF-8 编码，若文件已存在则覆盖）
                 File.WriteAllText(filePath, content, Encoding.UTF8);
                 MessageBox.Show($"Successfully saved.\nAt: {filePath}\nThe next time you open SimpVid Gist, your data will be automatically read.", "", MessageBoxButton.OK, MessageBoxImage.Information);
 
@@ -284,18 +289,18 @@ namespace SimpVid_Gist_WPF
             string transcript = TranscriptTextBox.Text.Trim();
             string summary = SummaryTextBox.Text.Trim();
 
-            // 2. Initialize file save dialog box.
+            // Initialize file save dialog box.
             SaveFileDialog saveFileDialog = new SaveFileDialog();
             saveFileDialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
             saveFileDialog.DefaultExt = "txt";
             saveFileDialog.FileName = "SimpVid_Export_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
-            // 3. If user clicked save...
+            // If user clicked save...
             if (saveFileDialog.ShowDialog() == true)
             {
                 try
                 {
-                    //4. Put together two parts of things.
+                    // Put together two parts.
                     StringBuilder fileContent = new StringBuilder();
                     fileContent.AppendLine("========================================");
                     fileContent.AppendLine("           YOUTUBE TRANSCRIPT           ");
@@ -311,10 +316,9 @@ namespace SimpVid_Gist_WPF
                         fileContent.AppendLine(string.IsNullOrWhiteSpace(summary) ? "[No Summary Generated]" : summary);
                     }
 
-                    //5. Write text to user-specified file path.
+                    // Write text to user-specified file path.
                     File.WriteAllText(saveFileDialog.FileName, fileContent.ToString(), Encoding.UTF8);
 
-                    //6. Successful MessageBox
                     MessageBox.Show($"File Successfully Saved to\n{saveFileDialog.FileName}", "", MessageBoxButton.OK, MessageBoxImage.Information);
 
                 }
@@ -332,7 +336,7 @@ namespace SimpVid_Gist_WPF
 
         private void Button_Save_Click(object sender, RoutedEventArgs e)
         {
-            // 1. If two fields are empty, do not export.
+            // If two fields are empty, do not export.
             if (!SummarizeButton.IsEnabled)
             {
                 MessageBox.Show("Please extract transcript first", "Nothing Saved", MessageBoxButton.OK, MessageBoxImage.Information);
