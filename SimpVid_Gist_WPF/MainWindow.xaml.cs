@@ -47,6 +47,26 @@ namespace SimpVid_Gist_WPF
             ApplyLanguage();
             LoadFromAppData();
             BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+
+            BaseUrlTextBox.TextChanged += (_, _) => AutoSaveConfig();
+            ModelTextBox.TextChanged += (_, _) => AutoSaveConfig();
+            ApiKeyTextBox.PasswordChanged += (_, _) => AutoSaveConfig();
+        }
+
+        private void AutoSaveConfig()
+        {
+            try
+            {
+                string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                string myAppFolder = System.IO.Path.Combine(appDataPath, "SimpVid Gist");
+                if (!Directory.Exists(myAppFolder))
+                    Directory.CreateDirectory(myAppFolder);
+                string filePath = System.IO.Path.Combine(myAppFolder, "userdata.txt");
+                File.WriteAllText(filePath, BaseUrlTextBox.Text + "\n" + ModelTextBox.Text + "\n" + ApiKeyTextBox.Password, Encoding.UTF8);
+            }
+            catch
+            {
+            }
         }
 
         private void PopulateLanguageCodes()
@@ -96,7 +116,6 @@ namespace SimpVid_Gist_WPF
 
             Title = "SimpVid Gist";
             LangToggleButton.Content = zh ? "EN" : "中";
-            Button_Save.Content = zh ? "保存" : "Save";
             Button_Close.Content = zh ? "关闭" : "Close";
 
             DescriptionText.Text = zh
@@ -117,7 +136,6 @@ namespace SimpVid_Gist_WPF
             ModelNameLabel.Text = zh ? "模型名称" : "Model Name";
             ApiKeyLabel.Text = zh ? "API密钥" : "AI API key";
             SummaryLengthLabel.Text = zh ? "总结长度" : "Summary Length";
-            SaveButton.Content = zh ? "保存AI配置" : "Save AI Base URL and Model Name";
             SummarizeButton.Content = zh ? "总结字幕" : "Summarize Transcript";
             SummaryLabel.Text = zh ? "总结" : "Summary";
 
@@ -448,33 +466,9 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        private void Button_Minimize_Click(object sender, RoutedEventArgs e)
         {
-            string dataToSave = BaseUrlTextBox.Text + "\n" + ModelTextBox.Text;
-            SaveToAppData("userdata.txt", dataToSave);
-        }
-
-        private void SaveToAppData(string fileName, string content)
-        {
-            bool zh = Localization.IsChinese;
-            try
-            {
-                string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-                string myAppFolder = System.IO.Path.Combine(appDataPath, "SimpVid Gist");
-                if (!Directory.Exists(myAppFolder))
-                {
-                    Directory.CreateDirectory(myAppFolder);
-                }
-                string filePath = System.IO.Path.Combine(myAppFolder, fileName);
-                File.WriteAllText(filePath, content, Encoding.UTF8);
-                MessageBox.Show(zh
-                    ? $"保存成功。\n路径: {filePath}\n下次打开SimpVid Gist时将自动读取。"
-                    : $"Successfully saved.\nAt: {filePath}\nThe next time you open SimpVid Gist, your data will be automatically read.", "", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(zh ? $"保存失败: {ex.Message}" : $"Failed to save: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            WindowState = WindowState.Minimized;
         }
 
         private bool ShowRetryDialog(string langCode)
@@ -602,13 +596,11 @@ namespace SimpVid_Gist_WPF
                 {
                     string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
                     if (lines.Length >= 1)
-                    {
                         BaseUrlTextBox.Text = lines[0];
-                    }
                     if (lines.Length >= 2)
-                    {
                         ModelTextBox.Text = lines[1];
-                    }
+                    if (lines.Length >= 3)
+                        ApiKeyTextBox.Password = lines[2];
                 }
             }
             catch (Exception ex)
