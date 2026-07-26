@@ -41,10 +41,25 @@ namespace SimpVid_Gist_WPF
         {
             InitializeComponent();
             CheckFirstRun();
+            PopulateLanguageCodes();
             PopulateExportFormats();
             PopulateSummaryLengths();
             ApplyLanguage();
             LoadFromAppData();
+        }
+
+        private void PopulateLanguageCodes()
+        {
+            bool zh = Localization.IsChinese;
+            LanguageCodeComboBox.Items.Clear();
+            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "英语 (en)" : "English (en)", Tag = "en" });
+            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "中文 (zh)" : "Chinese (zh)", Tag = "zh" });
+            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "日语 (ja)" : "Japanese (ja)", Tag = "ja" });
+            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "韩语 (ko)" : "Korean (ko)", Tag = "ko" });
+            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "西班牙语 (es)" : "Spanish (es)", Tag = "es" });
+            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "法语 (fr)" : "French (fr)", Tag = "fr" });
+            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "俄语 (ru)" : "Russian (ru)", Tag = "ru" });
+            LanguageCodeComboBox.SelectedIndex = 0;
         }
 
         private void PopulateExportFormats()
@@ -103,11 +118,16 @@ namespace SimpVid_Gist_WPF
             SummarizeButton.Content = zh ? "总结字幕" : "Summarize Transcript";
             SummaryLabel.Text = zh ? "总结" : "Summary";
 
+            int langIdx = LanguageCodeComboBox.SelectedIndex;
             int expIdx = ExportFormatComboBox.SelectedIndex;
             int sumIdx = SummaryLengthComboBox.SelectedIndex;
 
+            PopulateLanguageCodes();
             PopulateExportFormats();
             PopulateSummaryLengths();
+
+            if (langIdx >= 0 && langIdx < LanguageCodeComboBox.Items.Count)
+                LanguageCodeComboBox.SelectedIndex = langIdx;
 
             if (expIdx >= 0 && expIdx < ExportFormatComboBox.Items.Count)
                 ExportFormatComboBox.SelectedIndex = expIdx;
@@ -158,15 +178,24 @@ namespace SimpVid_Gist_WPF
             }
 
             var lines = _fullTranscript.Split('\n');
-            if (_isExpanded || lines.Length <= MaxPreviewLines)
+
+            if (lines.Length <= MaxPreviewLines)
             {
                 TranscriptTextBox.Text = _fullTranscript;
                 ShowMoreButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            ShowMoreButton.Visibility = Visibility.Visible;
+            if (_isExpanded)
+            {
+                TranscriptTextBox.Text = _fullTranscript;
+                ShowMoreButton.Content = "▲";
             }
             else
             {
                 TranscriptTextBox.Text = string.Join("\n", lines.Take(MaxPreviewLines)) + "\n...";
-                ShowMoreButton.Visibility = Visibility.Visible;
+                ShowMoreButton.Content = "▼";
             }
         }
 

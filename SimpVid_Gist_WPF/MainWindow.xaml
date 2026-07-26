@@ -92,15 +92,7 @@
                 <TextBlock x:Name="UrlLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Video URL or ID</TextBlock>
                 <TextBox Name="UrlTextBox"/>
                 <TextBlock x:Name="SubtitleLangLabel" Margin="0,15,0,0" FontWeight="SemiBold">Subtitle Language</TextBlock>
-                <ComboBox Name="LanguageCodeComboBox" SelectedIndex="0" Margin="0,10,0,0">
-                    <ComboBoxItem Content="English (en)" Tag="en"/>
-                    <ComboBoxItem Content="Chinese (zh)" Tag="zh"/>
-                    <ComboBoxItem Content="Japanese (ja)" Tag="ja"/>
-                    <ComboBoxItem Content="Korean (ko)" Tag="ko"/>
-                    <ComboBoxItem Content="Spainish (es)" Tag="es"/>
-                    <ComboBoxItem Content="French (fr)" Tag="fr"/>
-                    <ComboBoxItem Content="Russian (ru)" Tag="ru"/>
-                </ComboBox>
+                <ComboBox x:Name="LanguageCodeComboBox" SelectedIndex="0" Margin="0,10,0,0"/>
 
                 <Button Background="SkyBlue" x:Name="ExtractButton" Margin="0,10,0,10" Click="ExtractButton_Click" HorizontalAlignment="Center">
                     Extract Transcript
