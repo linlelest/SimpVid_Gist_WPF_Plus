@@ -46,6 +46,7 @@ namespace SimpVid_Gist_WPF
             PopulateSummaryLengths();
             ApplyLanguage();
             LoadFromAppData();
+            BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void PopulateLanguageCodes()
@@ -111,6 +112,8 @@ namespace SimpVid_Gist_WPF
 
             SummarizationGroupBox.Header = zh ? "AI总结" : "Summarization";
             BaseUrlLabel.Text = zh ? "AI接口地址" : "AI Base URL (API Endpoint)";
+            BaseUrlPlaceholder.Text = zh ? "例: https://api.openai.com/v1" : "e.g. https://api.openai.com/v1";
+            BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
             ModelNameLabel.Text = zh ? "模型名称" : "Model Name";
             ApiKeyLabel.Text = zh ? "API密钥" : "AI API key";
             SummaryLengthLabel.Text = zh ? "总结长度" : "Summary Length";
@@ -376,9 +379,13 @@ namespace SimpVid_Gist_WPF
         private async Task<string> CallAiApiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, int wordLimit)
         {
             bool zh = Localization.IsChinese;
+
+            if (!apiUrl.EndsWith("/chat/completions"))
+                apiUrl = apiUrl.TrimEnd('/') + "/chat/completions";
+
             string systemPrompt = zh
-                ? $"你是一个专业的AI助手。请将以下YouTube字幕总结为清晰、有条理的段落。可以使用要点。总结必须在{wordLimit}字以内。请简洁。"
-                : $"You are an expert assistant. Summarize the following YouTube transcript into clear, structured paragraphs. You may use key bullet points. The summary MUST be within {wordLimit} characters. Be concise.";
+                ? $"你是一个专业的AI总结助手。请将以下YouTube字幕总结为清晰、有条理的段落。可以使用要点。\n\n【硬性约束】总结内容必须严格控制在{wordLimit}字以内！你必须精确计算字数，不得超过{wordLimit}字。如果超过限制，请删减内容直到满足要求。三项原则：1)输出不超过{wordLimit}字 2)保留核心信息 3)语言简洁精炼。\n\n直接输出总结内容，无需任何额外说明。"
+                : $"You are an expert AI summarizer. Summarize the following YouTube transcript into clear, structured paragraphs. You may use bullet points.\n\n【STRICT CONSTRAINT】The summary MUST be within {wordLimit} characters — no exceptions! You MUST count characters precisely and NEVER exceed {wordLimit}. If you exceed the limit, trim until it fits. Three rules: 1) Output ≤ {wordLimit} characters 2) Keep all key information 3) Be concise.\n\nOutput the summary directly without any additional notes.";
 
             var requestBody = new JsonObject
             {
@@ -703,6 +710,11 @@ namespace SimpVid_Gist_WPF
         {
             string dataToSave = BaseUrlTextBox.Text + "\n" + ModelTextBox.Text;
             SaveToAppData("userdata.txt", dataToSave);
+        }
+
+        private void BaseUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }
