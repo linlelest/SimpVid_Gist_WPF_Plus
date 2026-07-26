@@ -84,8 +84,8 @@ namespace SimpVid_Gist_WPF
             Button_Close.Content = zh ? "关闭" : "Close";
 
             DescriptionText.Text = zh
-                ? "提取并总结YouTube视频字幕。提供API密钥以生成摘要。默认语言为英文。"
-                : "Extract and summarize YouTube video transcripts. Provide an API key to also generate a summary. The default language is English.";
+                ? "提取并总结YouTube视频字幕。提供AI的API密钥以生成摘要。"
+                : "Extract and summarize YouTube video transcripts. Provide an AI API key to also generate a summary.";
 
             UrlLabel.Text = zh ? "视频链接或ID" : "Video URL or ID";
             SubtitleLangLabel.Text = zh ? "字幕语言" : "Subtitle Language";
@@ -182,9 +182,16 @@ namespace SimpVid_Gist_WPF
 
         private ClosedCaptionTrackInfo? TryGetTrackByCode(ClosedCaptionManifest manifest, string code)
         {
-            if (code == "zh")
-                return manifest.GetByLanguage("zh-Hans") ?? manifest.GetByLanguage("zh-Hant");
-            return manifest.GetByLanguage(code);
+            try
+            {
+                if (code == "zh")
+                    return manifest.GetByLanguage("zh-Hans") ?? manifest.GetByLanguage("zh-Hant");
+                return manifest.GetByLanguage(code);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static string FormatSrtTime(TimeSpan ts)

@@ -85,9 +85,8 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1">
             <StackPanel Margin="16">
                 <TextBlock x:Name="DescriptionText" Margin="0,0,0,20" TextWrapping="Wrap">
-                    Extract and summarize YouTube video transcripts. 
-                    Provide an API key to also generate a summary. 
-                    The default language is English.
+                    Extract and summarize YouTube video transcripts.
+                    Provide an AI API key to also generate a summary.
                 </TextBlock>
 
                 <TextBlock x:Name="UrlLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Video URL or ID</TextBlock>
