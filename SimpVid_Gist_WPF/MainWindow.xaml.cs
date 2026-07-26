@@ -247,10 +247,12 @@ namespace SimpVid_Gist_WPF
 
             ExtractButton.IsEnabled = false;
             ShowMoreButton.Visibility = Visibility.Collapsed;
-            TranscriptTextBox.Text = zh ? "正在获取字幕..." : "Fetching transcript tracks...";
+            TranscriptTextBox.Text = zh ? "正在验证视频..." : "Validating video...";
             try
             {
-                var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(videoInput);
+                var video = await _youtubeClient.Videos.GetAsync(videoInput);
+                TranscriptTextBox.Text = zh ? "正在获取字幕..." : "Fetching transcript tracks...";
+                var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(video.Id);
 
                 string targetLangCode = (LanguageCodeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
 
