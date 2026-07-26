@@ -127,6 +127,8 @@
                     <ComboBox x:Name="SummaryLengthComboBox" SelectionChanged="SummaryLengthComboBox_SelectionChanged"/>
                     <TextBox x:Name="CustomLengthTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
 
+                    <Button x:Name="SaveButton" Margin="0,10,0,0" HorizontalAlignment="Center" Click="SaveButton_Click">Save AI Base URL and Model Name</Button>
+
                     <Button Background="Violet" x:Name="SummarizeButton" Margin="0,10,0,20" Click="SummarizeButton_Click" IsEnabled="False" HorizontalAlignment="Center">
                         Summarize Transcript
                     </Button>

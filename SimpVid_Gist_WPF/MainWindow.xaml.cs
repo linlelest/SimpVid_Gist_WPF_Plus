@@ -136,6 +136,7 @@ namespace SimpVid_Gist_WPF
             ModelNameLabel.Text = zh ? "模型名称" : "Model Name";
             ApiKeyLabel.Text = zh ? "API密钥" : "AI API key";
             SummaryLengthLabel.Text = zh ? "总结长度" : "Summary Length";
+            SaveButton.Content = zh ? "保存AI配置" : "Save AI Base URL and Model Name";
             SummarizeButton.Content = zh ? "总结字幕" : "Summarize Transcript";
             SummaryLabel.Text = zh ? "总结" : "Summary";
 
@@ -464,6 +465,11 @@ namespace SimpVid_Gist_WPF
             {
                 DragMove();
             }
+        }
+
+        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            AutoSaveConfig();
         }
 
         private void Button_Minimize_Click(object sender, RoutedEventArgs e)
