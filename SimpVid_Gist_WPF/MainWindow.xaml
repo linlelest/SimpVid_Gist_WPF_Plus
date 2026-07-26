@@ -14,27 +14,30 @@
         </Grid.RowDefinitions>
         <DockPanel MouseDown="DockPanel_MouseDown" Background="Transparent" Grid.Row="0">
             <TextBlock Margin="16,0,0,0" FontSize="24" TextWrapping="Wrap" FontWeight="Bold" DockPanel.Dock="Left" VerticalAlignment="Center">SimpVid Gist</TextBlock>
-            <Button Margin="0,0,10,0" Name="Button_Close" Content="Close" DockPanel.Dock="Right" HorizontalAlignment="Right" Height="30" Click="Button_Close_Click" Cursor="Hand" Background="#FE6584">
+
+            <Button x:Name="LangToggleButton" Content="中"
+                    Margin="0,0,10,0" DockPanel.Dock="Right"
+                    HorizontalAlignment="Right" Height="30"
+                    Click="LangToggleButton_Click" Cursor="Hand"
+                    Background="#999999" Width="40">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Border"
-                                Width="50"
-                                CornerRadius="15"
+                        <Border x:Name="Border" Width="40" CornerRadius="15"
                                 Background="{TemplateBinding Background}">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#FF4C70"/>
+                                <Setter TargetName="Border" Property="Background" Value="#777777"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="DarkRed"/>
+                                <Setter TargetName="Border" Property="Background" Value="#555555"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
             </Button>
-            
+
             <Button Background="LightSeaGreen"
                 Margin="0,0,10,0" Name="Button_Save" Content="Save" DockPanel.Dock="Right" HorizontalAlignment="Right" Height="30" Click="Button_Save_Click" Cursor="Arrow">
                 <Button.Template>
@@ -56,17 +59,38 @@
                     </ControlTemplate>
                 </Button.Template>
             </Button>
+
+            <Button Margin="0,0,10,0" Name="Button_Close" Content="Close" DockPanel.Dock="Right" HorizontalAlignment="Right" Height="30" Click="Button_Close_Click" Cursor="Hand" Background="#FE6584">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Width="50"
+                                CornerRadius="15"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#FF4C70"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="DarkRed"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
         </DockPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" Grid.Row="1">
             <StackPanel Margin="16">
-                <TextBlock Margin="0,0,0,20" TextWrapping="Wrap">
+                <TextBlock x:Name="DescriptionText" Margin="0,0,0,20" TextWrapping="Wrap">
                     Extract and summarize YouTube video transcripts. 
                     Provide an API key to also generate a summary. 
                     The default language is English.
                 </TextBlock>
 
-                <TextBlock Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Video URL or ID</TextBlock>
+                <TextBlock x:Name="UrlLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Video URL or ID</TextBlock>
                 <TextBox Name="UrlTextBox"/>
                 <TextBlock Margin="0,15,0,0" FontWeight="SemiBold">Subtitle Language</TextBlock>
                 <ComboBox Name="LanguageCodeComboBox" SelectedIndex="0" Margin="0,10,0,0">
@@ -80,31 +104,41 @@
                     <ComboBoxItem Content="Russian (ru)" Tag="ru"/>
                 </ComboBox>
 
+                <TextBlock x:Name="SubtitleLangLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Subtitle Language</TextBlock>
+                <ComboBox x:Name="SubtitleLangComboBox"/>
+
                 <Button Background="SkyBlue" x:Name="ExtractButton" Margin="0,10,0,10" Click="ExtractButton_Click" HorizontalAlignment="Center">
                     Extract Transcript
                 </Button>
 
-                <TextBlock Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Transcript</TextBlock>
+                <TextBlock x:Name="TranscriptLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Transcript</TextBlock>
                 <TextBox x:Name="TranscriptTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True"/>
 
-                <GroupBox Header="Summarization" Margin="0,40,0,0">
+                <TextBlock x:Name="ExportFormatLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Export Format</TextBlock>
+                <ComboBox x:Name="ExportFormatComboBox" Margin="0,0,0,0"/>
+
+                <GroupBox x:Name="SummarizationGroupBox" Header="Summarization" Margin="0,10,0,0">
                     <StackPanel>
-                        
-                    <TextBlock Margin="0,0,0,5" TextWrapping="Wrap" FontWeight="SemiBold">AI Base URL (API Endpoint)</TextBlock>
+
+                    <TextBlock x:Name="BaseUrlLabel" Margin="0,0,0,5" TextWrapping="Wrap" FontWeight="SemiBold">AI Base URL (API Endpoint)</TextBlock>
                     <TextBox Name="BaseUrlTextBox"/>
 
-                    <TextBlock Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Model Name</TextBlock>
+                    <TextBlock x:Name="ModelNameLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Model Name</TextBlock>
                     <TextBox Name="ModelTextBox"/>
 
-                    <TextBlock Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">AI API key</TextBlock>
+                    <TextBlock x:Name="ApiKeyLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">AI API key</TextBlock>
                     <PasswordBox Name="ApiKeyTextBox" PasswordChar="*"/>
 
-                    <Button x:Name="SaveButton" Margin="0,20,0,0" HorizontalAlignment="Center" Click="SaveButton_Click">Save AI Base URL and Model Name</Button>
+                    <TextBlock x:Name="SummaryLengthLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Summary Length</TextBlock>
+                    <ComboBox x:Name="SummaryLengthComboBox" SelectionChanged="SummaryLengthComboBox_SelectionChanged"/>
+                    <TextBox x:Name="CustomLengthTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
+
+                    <Button x:Name="SaveButton" Margin="0,10,0,0" HorizontalAlignment="Center" Click="SaveButton_Click">Save AI Base URL and Model Name</Button>
 
                     <Button Background="Violet" x:Name="SummarizeButton" Margin="0,10,0,20" Click="SummarizeButton_Click" IsEnabled="False" HorizontalAlignment="Center">
                         Summarize Transcript
                     </Button>
-                    <TextBlock Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Summary</TextBlock>
+                    <TextBlock x:Name="SummaryLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Summary</TextBlock>
 
                     <TextBox x:Name="SummaryTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True"/>
                     </StackPanel>
@@ -114,5 +148,5 @@
         </ScrollViewer>
 
     </Grid>
-    
+
 </Window>

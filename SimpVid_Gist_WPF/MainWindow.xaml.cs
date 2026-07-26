@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -9,133 +10,262 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using YoutubeExplode;
-
+using YoutubeExplode.Videos.ClosedCaptions;
 
 namespace SimpVid_Gist_WPF
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : Window
     {
         private readonly YoutubeClient _youtubeClient = new YoutubeClient();
         private readonly HttpClient _httpClient = new HttpClient();
+        private List<ClosedCaption> _captions = new List<ClosedCaption>();
+
+        private class SubtitleLangItem
+        {
+            public string Display { get; set; } = "";
+            public string Code { get; set; } = "";
+        }
+
+        private class ExportFormatItem
+        {
+            public string Display { get; set; } = "";
+            public string Value { get; set; } = "txt";
+        }
+
+        private class SummaryLengthItem
+        {
+            public string Display { get; set; } = "";
+            public int? WordCount { get; set; }
+        }
+
         public MainWindow()
         {
             InitializeComponent();
-
-            // Load previous user configurations
+            PopulateSubtitleLanguages();
+            PopulateExportFormats();
+            PopulateSummaryLengths();
+            ApplyLanguage();
             LoadFromAppData();
+        }
+
+        private void PopulateSubtitleLanguages()
+        {
+            bool zh = Localization.IsChinese;
+            SubtitleLangComboBox.ItemsSource = new List<SubtitleLangItem>
+            {
+                new() { Display = zh ? "英语" : "English", Code = "en" },
+                new() { Display = zh ? "中文（简体）" : "Chinese (Simplified)", Code = "zh-Hans" },
+                new() { Display = zh ? "中文（繁体）" : "Chinese (Traditional)", Code = "zh-Hant" },
+                new() { Display = zh ? "日语" : "Japanese", Code = "ja" },
+                new() { Display = zh ? "韩语" : "Korean", Code = "ko" },
+                new() { Display = zh ? "西班牙语" : "Spanish", Code = "es" },
+                new() { Display = zh ? "法语" : "French", Code = "fr" },
+                new() { Display = zh ? "俄语" : "Russian", Code = "ru" },
+            };
+            SubtitleLangComboBox.DisplayMemberPath = "Display";
+            SubtitleLangComboBox.SelectedIndex = 0;
+        }
+
+        private void PopulateExportFormats()
+        {
+            bool zh = Localization.IsChinese;
+            ExportFormatComboBox.ItemsSource = new List<ExportFormatItem>
+            {
+                new() { Display = zh ? "TXT（纯文本）" : "TXT (text only)", Value = "txt" },
+                new() { Display = zh ? "SRT（带时间轴）" : "SRT (with timestamps)", Value = "srt" },
+            };
+            ExportFormatComboBox.DisplayMemberPath = "Display";
+            ExportFormatComboBox.SelectedIndex = 0;
+        }
+
+        private void PopulateSummaryLengths()
+        {
+            bool zh = Localization.IsChinese;
+            SummaryLengthComboBox.ItemsSource = new List<SummaryLengthItem>
+            {
+                new() { Display = zh ? "极简（100字）" : "Minimal (100 chars)", WordCount = 100 },
+                new() { Display = zh ? "简短（300字）" : "Short (300 chars)", WordCount = 300 },
+                new() { Display = zh ? "中等（500字）" : "Medium (500 chars)", WordCount = 500 },
+                new() { Display = zh ? "详细（1000字）" : "Long (1000 chars)", WordCount = 1000 },
+                new() { Display = zh ? "自定义" : "Custom", WordCount = null },
+            };
+            SummaryLengthComboBox.DisplayMemberPath = "Display";
+            SummaryLengthComboBox.SelectedIndex = 2;
+        }
+
+        private void ApplyLanguage()
+        {
+            bool zh = Localization.IsChinese;
+
+            Title = "SimpVid Gist";
+            LangToggleButton.Content = zh ? "EN" : "中";
+            Button_Save.Content = zh ? "保存" : "Save";
+            Button_Close.Content = zh ? "关闭" : "Close";
+
+            DescriptionText.Text = zh
+                ? "提取并总结YouTube视频字幕。提供API密钥以生成摘要。默认语言为英文。"
+                : "Extract and summarize YouTube video transcripts. Provide an API key to also generate a summary. The default language is English.";
+
+            UrlLabel.Text = zh ? "视频链接或ID" : "Video URL or ID";
+            SubtitleLangLabel.Text = zh ? "字幕语言" : "Subtitle Language";
+            ExtractButton.Content = zh ? "提取字幕" : "Extract Transcript";
+            TranscriptLabel.Text = zh ? "字幕" : "Transcript";
+            ExportFormatLabel.Text = zh ? "导出格式" : "Export Format";
+
+            SummarizationGroupBox.Header = zh ? "AI总结" : "Summarization";
+            BaseUrlLabel.Text = zh ? "AI接口地址" : "AI Base URL (API Endpoint)";
+            ModelNameLabel.Text = zh ? "模型名称" : "Model Name";
+            ApiKeyLabel.Text = zh ? "API密钥" : "AI API key";
+            SummaryLengthLabel.Text = zh ? "总结长度" : "Summary Length";
+            SaveButton.Content = zh ? "保存AI配置" : "Save AI Base URL and Model Name";
+            SummarizeButton.Content = zh ? "总结字幕" : "Summarize Transcript";
+            SummaryLabel.Text = zh ? "总结" : "Summary";
+
+            int subIdx = SubtitleLangComboBox.SelectedIndex;
+            int expIdx = ExportFormatComboBox.SelectedIndex;
+            int sumIdx = SummaryLengthComboBox.SelectedIndex;
+
+            PopulateSubtitleLanguages();
+            PopulateExportFormats();
+            PopulateSummaryLengths();
+
+            if (subIdx >= 0 && subIdx < SubtitleLangComboBox.Items.Count)
+                SubtitleLangComboBox.SelectedIndex = subIdx;
+            if (expIdx >= 0 && expIdx < ExportFormatComboBox.Items.Count)
+                ExportFormatComboBox.SelectedIndex = expIdx;
+            if (sumIdx >= 0 && sumIdx < SummaryLengthComboBox.Items.Count)
+                SummaryLengthComboBox.SelectedIndex = sumIdx;
+
+            bool isCustom = (SummaryLengthComboBox.SelectedItem as SummaryLengthItem)?.WordCount == null;
+            CustomLengthTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void LangToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            Localization.IsChinese = !Localization.IsChinese;
+            ApplyLanguage();
+        }
+
+        private void SummaryLengthComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            bool isCustom = (SummaryLengthComboBox.SelectedItem as SummaryLengthItem)?.WordCount == null;
+            CustomLengthTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private int GetWordCountLimit()
+        {
+            var item = SummaryLengthComboBox.SelectedItem as SummaryLengthItem;
+            if (item?.WordCount.HasValue == true)
+                return item.WordCount.Value;
+            if (int.TryParse(CustomLengthTextBox.Text.Trim(), out int custom) && custom > 0)
+                return custom;
+            CustomLengthTextBox.Text = "500";
+            return 500;
+        }
+
+        private static string FormatSrtTime(TimeSpan ts)
+        {
+            return $"{ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2},{ts.Milliseconds:D3}";
         }
 
         private async void ExtractButton_Click(object sender, RoutedEventArgs e)
         {
             string videoInput = UrlTextBox.Text.Trim();
+            bool zh = Localization.IsChinese;
 
             if (string.IsNullOrWhiteSpace(videoInput))
             {
-                MessageBox.Show("Please enter a valid YouTube Video URL or ID", "Invalid Video Input", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(zh ? "请输入有效的YouTube链接或ID" : "Please enter a valid YouTube Video URL or ID", zh ? "输入无效" : "Invalid Video Input", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
 
-            // UI Feedback while working
             ExtractButton.IsEnabled = false;
-            TranscriptTextBox.Text = "Fetching transcript tracks...";
+            TranscriptTextBox.Text = zh ? "正在获取字幕..." : "Fetching transcript tracks...";
             try
             {
-                // 1. Fetch the caption tracks available for the video
                 var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(videoInput);
 
-                // 2. Grab track with specified language
                 string targetLangCode = (LanguageCodeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
 
                 var trackInfo = trackManifest.GetByLanguage(targetLangCode)
                                 ?? trackManifest.Tracks.FirstOrDefault();
 
-
                 if (trackInfo != null)
                 {
-                    TranscriptTextBox.Text = "Downloading transcript...";
+                    TranscriptTextBox.Text = zh ? "正在下载字幕..." : "Downloading transcript...";
 
-                    // 3. Download the actual transcript contents
                     var closedCaptionTrack = await _youtubeClient.Videos.ClosedCaptions.GetAsync(trackInfo);
+                    _captions = closedCaptionTrack.Captions.ToList();
 
-                    // 4. Compile the text segments together
                     var transcriptBuilder = new StringBuilder();
-                    foreach (var caption in closedCaptionTrack.Captions)
+                    foreach (var caption in _captions)
                     {
-                        // Exclude empty entries or music tags like [Music] if desired
                         if (!string.IsNullOrWhiteSpace(caption.Text))
                         {
                             transcriptBuilder.AppendLine(caption.Text);
                         }
                     }
 
-                    // 5. Output to the UI
                     TranscriptTextBox.Text = transcriptBuilder.ToString();
-
                     SummarizeButton.IsEnabled = true;
                 }
                 else
                 {
-                    TranscriptTextBox.Text = $"No transcript or captions found for this video in language {targetLangCode}.";
+                    TranscriptTextBox.Text = zh ? $"未找到该视频的语言为 {targetLangCode} 的字幕。" : $"No transcript or captions found for this video in language {targetLangCode}.";
                 }
             }
             catch (Exception ex)
             {
-                TranscriptTextBox.Text = $"Error retrieving transcript: {ex.Message}";
+                TranscriptTextBox.Text = zh ? $"获取字幕时出错: {ex.Message}" : $"Error retrieving transcript: {ex.Message}";
             }
             finally
             {
-                // Always re-enable the button when done
                 ExtractButton.IsEnabled = true;
             }
         }
-        /// <summary>
-        /// Step 2: Handle Self-service AI summarization
-        /// </summary>
 
         private async void SummarizeButton_Click(object sender, RoutedEventArgs e)
         {
-            // Securely grab the key from PasswordBox
             string apiKey = ApiKeyTextBox.Password.Trim();
             string transcript = TranscriptTextBox.Text.Trim();
             string apiUrl = BaseUrlTextBox.Text.Trim();
             string modelName = ModelTextBox.Text.Trim();
+            bool zh = Localization.IsChinese;
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                MessageBox.Show("Please enter your AI API key.", "AI API key Required", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(zh ? "请输入AI API密钥。" : "Please enter your AI API key.", zh ? "需要API密钥" : "AI API key Required", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            if (string.IsNullOrWhiteSpace(transcript) || transcript.StartsWith("Error"))
+            if (string.IsNullOrWhiteSpace(transcript))
             {
-                MessageBox.Show("Please fetch a valid video transcript before summarizing.", "Transcript Empty", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(zh ? "请先提取有效的视频字幕。" : "Please fetch a valid video transcript before summarizing.", zh ? "字幕为空" : "Transcript Empty", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (string.IsNullOrWhiteSpace(apiUrl))
             {
-                MessageBox.Show("Please enter the AI Base URL.", "Input Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(zh ? "请输入AI接口地址。" : "Please enter the AI Base URL.", zh ? "请输入" : "Input Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(modelName))
+            {
+                MessageBox.Show(zh ? "请输入模型名称。" : "Please enter the Model Name.", zh ? "请输入" : "Input Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(modelName))
-            {
-                MessageBox.Show("Please enter the Model Name.", "Input Required", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            // Lock UI elements during network traffic
             SummarizeButton.IsEnabled = false;
             ExtractButton.IsEnabled = false;
-            SummaryTextBox.Text = "Analyzing transcript & generating summary...";
+            SummaryTextBox.Text = zh ? "正在分析字幕并生成总结..." : "Analyzing transcript & generating summary...";
 
             try
             {
-                string summaryResult = await CallAiApiAsync(apiKey, transcript, apiUrl, modelName);
+                int wordLimit = GetWordCountLimit();
+                string summaryResult = await CallAiApiAsync(apiKey, transcript, apiUrl, modelName, wordLimit);
                 SummaryTextBox.Text = summaryResult;
             }
             catch (Exception ex)
             {
-                SummaryTextBox.Text = $"AI Error: {ex.Message}";
+                SummaryTextBox.Text = zh ? $"AI错误: {ex.Message}" : $"AI Error: {ex.Message}";
             }
             finally
             {
@@ -144,28 +274,29 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-        /// <summary>
-        /// Universal HTTP wrapper compatible with standard AI endpoints
-        /// </summary>
-        private async Task<string> CallAiApiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName)
+        private async Task<string> CallAiApiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, int wordLimit)
         {
-            // 使用 JsonObject 避免反射序列化异常
+            bool zh = Localization.IsChinese;
+            string systemPrompt = zh
+                ? $"你是一个专业的AI助手。请将以下YouTube字幕总结为清晰、有条理的段落。可以使用要点。总结必须在{wordLimit}字以内。请简洁。"
+                : $"You are an expert assistant. Summarize the following YouTube transcript into clear, structured paragraphs. You may use key bullet points. The summary MUST be within {wordLimit} characters. Be concise.";
+
             var requestBody = new JsonObject
             {
                 ["model"] = modelName,
                 ["messages"] = new JsonArray
-        {
-            new JsonObject
-            {
-                ["role"] = "system",
-                ["content"] = "You are an expert assistant. Summarize the following YouTube transcript into clear, structured paragraphs. You may use key bullet points."
-            },
-            new JsonObject
-            {
-                ["role"] = "user",
-                ["content"] = transcriptContent
-            }
-        },
+                {
+                    new JsonObject
+                    {
+                        ["role"] = "system",
+                        ["content"] = systemPrompt
+                    },
+                    new JsonObject
+                    {
+                        ["role"] = "user",
+                        ["content"] = transcriptContent
+                    }
+                },
                 ["temperature"] = 0.5
             };
 
@@ -191,7 +322,7 @@ namespace SimpVid_Gist_WPF
                                             .GetProperty("message")
                                             .GetProperty("content")
                                             .GetString();
-                    return rawSummary?.Trim() ?? "AI returned an empty response.";
+                    return rawSummary?.Trim() ?? (zh ? "AI返回了空响应。" : "AI returned an empty response.");
                 }
             }
         }
@@ -209,63 +340,44 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             string dataToSave = BaseUrlTextBox.Text + "\n" + ModelTextBox.Text;
             SaveToAppData("userdata.txt", dataToSave);
         }
-        /// <summary>
-        /// Save user configurations
-        /// </summary>
 
         private void SaveToAppData(string fileName, string content)
         {
+            bool zh = Localization.IsChinese;
             try
             {
-                // 获取 AppData\Roaming 路径
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-
-                // 拼接你自己的应用程序文件夹名称（防止污染根目录）
                 string myAppFolder = System.IO.Path.Combine(appDataPath, "SimpVid Gist");
-
-                // 检查文件夹是否存在，如果不存在则创建
                 if (!Directory.Exists(myAppFolder))
                 {
                     Directory.CreateDirectory(myAppFolder);
                 }
-
-                // 拼接完整的文件路径
                 string filePath = System.IO.Path.Combine(myAppFolder, fileName);
-
-                // 写入文件（此处使用 UTF-8 编码，若文件已存在则覆盖）
                 File.WriteAllText(filePath, content, Encoding.UTF8);
-                MessageBox.Show($"Successfully saved.\nAt: {filePath}\nThe next time you open SimpVid Gist, your data will be automatically read.", "", MessageBoxButton.OK, MessageBoxImage.Information);
-
+                MessageBox.Show(zh
+                    ? $"保存成功。\n路径: {filePath}\n下次打开SimpVid Gist时将自动读取。"
+                    : $"Successfully saved.\nAt: {filePath}\nThe next time you open SimpVid Gist, your data will be automatically read.", "", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to save: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(zh ? $"保存失败: {ex.Message}" : $"Failed to save: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        /// <summary>
-        /// Read user configurations
-        /// </summary>
+
         private void LoadFromAppData()
         {
             try
             {
-                // Get & Combine Path
                 string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 string filePath = System.IO.Path.Combine(appDataPath, "SimpVid Gist", "userdata.txt");
-
-                // If file exists, read the configuration.
                 if (File.Exists(filePath))
                 {
-                    // Read the file by line
                     string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
-
-                    // Fill in textboxes
                     if (lines.Length >= 1)
                     {
                         BaseUrlTextBox.Text = lines[0];
@@ -274,13 +386,12 @@ namespace SimpVid_Gist_WPF
                     {
                         ModelTextBox.Text = lines[1];
                     }
-
                 }
             }
             catch (Exception ex)
             {
-                // What to do if load failed.
-                MessageBox.Show($"Failed to load save data:\n{ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
+                bool zh = Localization.IsChinese;
+                MessageBox.Show(zh ? $"加载保存数据失败:\n{ex.Message}" : $"Failed to load save data:\n{ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -288,64 +399,90 @@ namespace SimpVid_Gist_WPF
         {
             string transcript = TranscriptTextBox.Text.Trim();
             string summary = SummaryTextBox.Text.Trim();
+            bool zh = Localization.IsChinese;
 
-            // Initialize file save dialog box.
+            var formatItem = ExportFormatComboBox.SelectedItem as ExportFormatItem;
+            bool isSrt = formatItem?.Value == "srt" && _captions.Count > 0;
+
             SaveFileDialog saveFileDialog = new SaveFileDialog();
-            saveFileDialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
-            saveFileDialog.DefaultExt = "txt";
+
+            if (isSrt)
+            {
+                saveFileDialog.Filter = "SRT Files (*.srt)|*.srt|All Files (*.*)|*.*";
+                saveFileDialog.DefaultExt = "srt";
+            }
+            else
+            {
+                saveFileDialog.Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*";
+                saveFileDialog.DefaultExt = "txt";
+            }
             saveFileDialog.FileName = "SimpVid_Export_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
-            // If user clicked save...
             if (saveFileDialog.ShowDialog() == true)
             {
                 try
                 {
-                    // Put together two parts.
-                    StringBuilder fileContent = new StringBuilder();
-                    fileContent.AppendLine("========================================");
-                    fileContent.AppendLine("           YOUTUBE TRANSCRIPT           ");
-                    fileContent.AppendLine("========================================");
-                    fileContent.AppendLine(string.IsNullOrWhiteSpace(transcript) ? "[No Transcript Available]" : transcript);
-
-                    if (!string.IsNullOrEmpty(summary))
+                    if (isSrt)
                     {
-                        fileContent.AppendLine();
+                        StringBuilder sb = new StringBuilder();
+                        int seq = 1;
+                        foreach (var caption in _captions)
+                        {
+                            if (!string.IsNullOrWhiteSpace(caption.Text))
+                            {
+                                string start = FormatSrtTime(caption.Offset);
+                                string end = FormatSrtTime(caption.Offset + caption.Duration);
+                                sb.AppendLine(seq.ToString());
+                                sb.AppendLine($"{start} --> {end}");
+                                sb.AppendLine(caption.Text);
+                                sb.AppendLine();
+                                seq++;
+                            }
+                        }
+                        File.WriteAllText(saveFileDialog.FileName, sb.ToString(), Encoding.UTF8);
+                    }
+                    else
+                    {
+                        StringBuilder fileContent = new StringBuilder();
                         fileContent.AppendLine("========================================");
-                        fileContent.AppendLine("               AI SUMMARY               ");
+                        fileContent.AppendLine(zh ? "          YouTube 字幕           " : "           YOUTUBE TRANSCRIPT           ");
                         fileContent.AppendLine("========================================");
-                        fileContent.AppendLine(string.IsNullOrWhiteSpace(summary) ? "[No Summary Generated]" : summary);
+                        fileContent.AppendLine(string.IsNullOrWhiteSpace(transcript) ? (zh ? "[无字幕]" : "[No Transcript Available]") : transcript);
+
+                        if (!string.IsNullOrEmpty(summary))
+                        {
+                            fileContent.AppendLine();
+                            fileContent.AppendLine("========================================");
+                            fileContent.AppendLine(zh ? "               AI 总结               " : "               AI SUMMARY               ");
+                            fileContent.AppendLine("========================================");
+                            fileContent.AppendLine(summary);
+                        }
+
+                        File.WriteAllText(saveFileDialog.FileName, fileContent.ToString(), Encoding.UTF8);
                     }
 
-                    // Write text to user-specified file path.
-                    File.WriteAllText(saveFileDialog.FileName, fileContent.ToString(), Encoding.UTF8);
-
-                    MessageBox.Show($"File Successfully Saved to\n{saveFileDialog.FileName}", "", MessageBoxButton.OK, MessageBoxImage.Information);
-
+                    MessageBox.Show(zh
+                        ? $"文件已成功保存到\n{saveFileDialog.FileName}"
+                        : $"File Successfully Saved to\n{saveFileDialog.FileName}", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to export file: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(zh ? $"导出文件失败: {ex.Message}" : $"Failed to export file: {ex.Message}", zh ? "导出错误" : "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
-
         }
-
-        /// <summary>
-        /// Save to *.txt file.
-        /// </summary>
 
         private void Button_Save_Click(object sender, RoutedEventArgs e)
         {
-            // If two fields are empty, do not export.
+            bool zh = Localization.IsChinese;
             if (!SummarizeButton.IsEnabled)
             {
-                MessageBox.Show("Please extract transcript first", "Nothing Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(zh ? "请先提取字幕" : "Please extract transcript first", zh ? "未保存" : "Nothing Saved", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
                 WriteInContent();
             }
-
         }
     }
 }
