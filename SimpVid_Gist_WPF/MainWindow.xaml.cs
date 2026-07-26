@@ -20,12 +20,6 @@ namespace SimpVid_Gist_WPF
         private readonly HttpClient _httpClient = new HttpClient();
         private List<ClosedCaption> _captions = new List<ClosedCaption>();
 
-        private class SubtitleLangItem
-        {
-            public string Display { get; set; } = "";
-            public string Code { get; set; } = "";
-        }
-
         private class ExportFormatItem
         {
             public string Display { get; set; } = "";
@@ -41,29 +35,10 @@ namespace SimpVid_Gist_WPF
         public MainWindow()
         {
             InitializeComponent();
-            PopulateSubtitleLanguages();
             PopulateExportFormats();
             PopulateSummaryLengths();
             ApplyLanguage();
             LoadFromAppData();
-        }
-
-        private void PopulateSubtitleLanguages()
-        {
-            bool zh = Localization.IsChinese;
-            SubtitleLangComboBox.ItemsSource = new List<SubtitleLangItem>
-            {
-                new() { Display = zh ? "英语" : "English", Code = "en" },
-                new() { Display = zh ? "中文（简体）" : "Chinese (Simplified)", Code = "zh-Hans" },
-                new() { Display = zh ? "中文（繁体）" : "Chinese (Traditional)", Code = "zh-Hant" },
-                new() { Display = zh ? "日语" : "Japanese", Code = "ja" },
-                new() { Display = zh ? "韩语" : "Korean", Code = "ko" },
-                new() { Display = zh ? "西班牙语" : "Spanish", Code = "es" },
-                new() { Display = zh ? "法语" : "French", Code = "fr" },
-                new() { Display = zh ? "俄语" : "Russian", Code = "ru" },
-            };
-            SubtitleLangComboBox.DisplayMemberPath = "Display";
-            SubtitleLangComboBox.SelectedIndex = 0;
         }
 
         private void PopulateExportFormats()
@@ -111,6 +86,7 @@ namespace SimpVid_Gist_WPF
             ExtractButton.Content = zh ? "提取字幕" : "Extract Transcript";
             TranscriptLabel.Text = zh ? "字幕" : "Transcript";
             ExportFormatLabel.Text = zh ? "导出格式" : "Export Format";
+            ExportButton.Content = zh ? "导出" : "Export";
 
             SummarizationGroupBox.Header = zh ? "AI总结" : "Summarization";
             BaseUrlLabel.Text = zh ? "AI接口地址" : "AI Base URL (API Endpoint)";
@@ -121,16 +97,12 @@ namespace SimpVid_Gist_WPF
             SummarizeButton.Content = zh ? "总结字幕" : "Summarize Transcript";
             SummaryLabel.Text = zh ? "总结" : "Summary";
 
-            int subIdx = SubtitleLangComboBox.SelectedIndex;
             int expIdx = ExportFormatComboBox.SelectedIndex;
             int sumIdx = SummaryLengthComboBox.SelectedIndex;
 
-            PopulateSubtitleLanguages();
             PopulateExportFormats();
             PopulateSummaryLengths();
 
-            if (subIdx >= 0 && subIdx < SubtitleLangComboBox.Items.Count)
-                SubtitleLangComboBox.SelectedIndex = subIdx;
             if (expIdx >= 0 && expIdx < ExportFormatComboBox.Items.Count)
                 ExportFormatComboBox.SelectedIndex = expIdx;
             if (sumIdx >= 0 && sumIdx < SummaryLengthComboBox.Items.Count)
@@ -472,7 +444,7 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-        private void Button_Save_Click(object sender, RoutedEventArgs e)
+        private void ExportButton_Click(object sender, RoutedEventArgs e)
         {
             bool zh = Localization.IsChinese;
             if (!SummarizeButton.IsEnabled)
@@ -483,6 +455,12 @@ namespace SimpVid_Gist_WPF
             {
                 WriteInContent();
             }
+        }
+
+        private void Button_Save_Click(object sender, RoutedEventArgs e)
+        {
+            string dataToSave = BaseUrlTextBox.Text + "\n" + ModelTextBox.Text;
+            SaveToAppData("userdata.txt", dataToSave);
         }
     }
 }
