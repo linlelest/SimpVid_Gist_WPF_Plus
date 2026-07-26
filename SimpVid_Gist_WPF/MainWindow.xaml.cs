@@ -405,7 +405,6 @@ namespace SimpVid_Gist_WPF
                         ["content"] = transcriptContent
                     }
                 },
-                ["max_tokens"] = Math.Max(wordLimit * 2, 4096),
                 ["temperature"] = 0.5
             };
 
