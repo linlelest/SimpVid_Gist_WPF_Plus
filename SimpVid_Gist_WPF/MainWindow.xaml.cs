@@ -180,7 +180,7 @@ namespace SimpVid_Gist_WPF
             UpdateTranscriptDisplay();
         }
 
-        private TrackInfo? TryGetTrackByCode(ClosedCaptionManifest manifest, string code)
+        private ClosedCaptionTrackInfo? TryGetTrackByCode(ClosedCaptionManifest manifest, string code)
         {
             if (code == "zh")
                 return manifest.GetByLanguage("zh-Hans") ?? manifest.GetByLanguage("zh-Hant");
