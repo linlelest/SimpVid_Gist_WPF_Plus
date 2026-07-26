@@ -173,11 +173,9 @@ namespace SimpVid_Gist_WPF
         private void ShowMoreButton_Click(object sender, RoutedEventArgs e)
         {
             _isExpanded = !_isExpanded;
-            if (_isExpanded)
-                ShowMoreButton.Content = "▲";
-            else
-                ShowMoreButton.Content = "▼";
+            ShowMoreButton.Content = _isExpanded ? "▲" : "▼";
             UpdateTranscriptDisplay();
+            UpdateLayout();
         }
 
         private ClosedCaptionTrackInfo? TryGetTrackByCode(ClosedCaptionManifest manifest, string code)
@@ -185,7 +183,12 @@ namespace SimpVid_Gist_WPF
             try
             {
                 if (code == "zh")
-                    return manifest.GetByLanguage("zh-Hans") ?? manifest.GetByLanguage("zh-Hant");
+                {
+                    return manifest.GetByLanguage("zh-Hans")
+                        ?? manifest.GetByLanguage("zh-Hant")
+                        ?? manifest.GetByLanguage("zh-CN")
+                        ?? manifest.GetByLanguage("zh-TW");
+                }
                 return manifest.GetByLanguage(code);
             }
             catch
@@ -219,7 +222,8 @@ namespace SimpVid_Gist_WPF
 
                 string targetLangCode = (LanguageCodeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
 
-                var trackInfo = TryGetTrackByCode(trackManifest, targetLangCode);
+                var trackInfo = TryGetTrackByCode(trackManifest, targetLangCode)
+                             ?? trackManifest.Tracks.FirstOrDefault();
 
                 if (trackInfo == null)
                 {
@@ -228,16 +232,13 @@ namespace SimpVid_Gist_WPF
                     {
                         foreach (var code in AllLangCodes)
                         {
-                            if (code == targetLangCode || (targetLangCode == "zh" && (code == "zh-Hans" || code == "zh-Hant")))
-                                continue;
-                            trackInfo = TryGetTrackByCode(trackManifest, code);
+                            trackInfo = TryGetTrackByCode(trackManifest, code)
+                                     ?? trackManifest.Tracks.FirstOrDefault();
                             if (trackInfo != null)
                                 break;
                         }
                     }
                 }
-
-                trackInfo ??= trackManifest.Tracks.FirstOrDefault();
 
                 if (trackInfo != null)
                 {
