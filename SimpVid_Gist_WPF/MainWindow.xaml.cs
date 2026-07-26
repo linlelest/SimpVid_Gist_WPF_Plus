@@ -251,8 +251,10 @@ namespace SimpVid_Gist_WPF
 
                 string targetLangCode = (LanguageCodeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
 
-                var trackInfo = TryGetTrackByCode(trackManifest, targetLangCode)
-                             ?? trackManifest.Tracks.FirstOrDefault();
+                var trackInfo = TryGetTrackByCode(trackManifest, targetLangCode);
+
+                if (trackInfo == null && targetLangCode == "zh")
+                    trackInfo = trackManifest.Tracks.FirstOrDefault();
 
                 if (trackInfo == null)
                 {
@@ -261,11 +263,14 @@ namespace SimpVid_Gist_WPF
                     {
                         foreach (var code in AllLangCodes)
                         {
-                            trackInfo = TryGetTrackByCode(trackManifest, code)
-                                     ?? trackManifest.Tracks.FirstOrDefault();
-                            if (trackInfo != null)
-                                break;
+                            if (code == targetLangCode) continue;
+                            if (targetLangCode == "zh" && (code == "zh-Hans" || code == "zh-Hant")) continue;
+
+                            trackInfo = TryGetTrackByCode(trackManifest, code);
+                            if (trackInfo != null) break;
                         }
+
+                        trackInfo ??= trackManifest.Tracks.FirstOrDefault();
                     }
                 }
 
