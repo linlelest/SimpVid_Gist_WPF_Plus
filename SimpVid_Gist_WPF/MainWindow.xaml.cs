@@ -63,9 +63,12 @@ namespace SimpVid_Gist_WPF
                     Directory.CreateDirectory(myAppFolder);
                 string filePath = System.IO.Path.Combine(myAppFolder, "userdata.txt");
                 File.WriteAllText(filePath, BaseUrlTextBox.Text + "\n" + ModelTextBox.Text + "\n" + ApiKeyTextBox.Password, Encoding.UTF8);
+                MessageBox.Show($"Successfully saved.\nAt: {filePath}\nThe next time you open SimpVid Gist, your data will be automatically read.", "", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch
             {
+                MessageBox.Show($"Save Failed.\nAn unknown error occured.", "", MessageBoxButton.OK, MessageBoxImage.Error);
+
             }
         }
 
