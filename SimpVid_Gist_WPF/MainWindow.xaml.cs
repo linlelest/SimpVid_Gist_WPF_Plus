@@ -445,7 +445,7 @@ namespace SimpVid_Gist_WPF
                 using (JsonDocument doc = JsonDocument.Parse(responseString))
                 {
                     JsonElement root = doc.RootElement;
-                    string rawSummary = root.GetProperty("choices")[0]
+                    string? rawSummary = root.GetProperty("choices")[0]
                                             .GetProperty("message")
                                             .GetProperty("content")
                                             .GetString();
@@ -704,12 +704,6 @@ namespace SimpVid_Gist_WPF
             {
                 WriteInContent();
             }
-        }
-
-        private void Button_Save_Click(object sender, RoutedEventArgs e)
-        {
-            string dataToSave = BaseUrlTextBox.Text + "\n" + ModelTextBox.Text;
-            SaveToAppData("userdata.txt", dataToSave);
         }
 
         private void BaseUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
