@@ -19,6 +19,11 @@ namespace SimpVid_Gist_WPF
         private readonly YoutubeClient _youtubeClient = new YoutubeClient();
         private readonly HttpClient _httpClient = new HttpClient();
         private List<ClosedCaption> _captions = new List<ClosedCaption>();
+        private string _fullTranscript = "";
+        private bool _isExpanded = false;
+        private const int MaxPreviewLines = 5;
+
+        private static readonly string[] AllLangCodes = { "en", "zh-Hans", "zh-Hant", "ja", "ko", "es", "fr", "ru" };
 
         private class ExportFormatItem
         {
@@ -35,6 +40,7 @@ namespace SimpVid_Gist_WPF
         public MainWindow()
         {
             InitializeComponent();
+            CheckFirstRun();
             PopulateExportFormats();
             PopulateSummaryLengths();
             ApplyLanguage();
@@ -135,6 +141,52 @@ namespace SimpVid_Gist_WPF
             return 500;
         }
 
+        private void DisplayTranscript(string text)
+        {
+            _fullTranscript = text;
+            _isExpanded = false;
+            UpdateTranscriptDisplay();
+        }
+
+        private void UpdateTranscriptDisplay()
+        {
+            if (string.IsNullOrEmpty(_fullTranscript))
+            {
+                TranscriptTextBox.Text = "";
+                ShowMoreButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var lines = _fullTranscript.Split('\n');
+            if (_isExpanded || lines.Length <= MaxPreviewLines)
+            {
+                TranscriptTextBox.Text = _fullTranscript;
+                ShowMoreButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                TranscriptTextBox.Text = string.Join("\n", lines.Take(MaxPreviewLines)) + "\n...";
+                ShowMoreButton.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void ShowMoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            _isExpanded = !_isExpanded;
+            if (_isExpanded)
+                ShowMoreButton.Content = "▲";
+            else
+                ShowMoreButton.Content = "▼";
+            UpdateTranscriptDisplay();
+        }
+
+        private TrackInfo? TryGetTrackByCode(ClosedCaptionManifest manifest, string code)
+        {
+            if (code == "zh")
+                return manifest.GetByLanguage("zh-Hans") ?? manifest.GetByLanguage("zh-Hant");
+            return manifest.GetByLanguage(code);
+        }
+
         private static string FormatSrtTime(TimeSpan ts)
         {
             return $"{ts.Hours:D2}:{ts.Minutes:D2}:{ts.Seconds:D2},{ts.Milliseconds:D3}";
@@ -152,6 +204,7 @@ namespace SimpVid_Gist_WPF
             }
 
             ExtractButton.IsEnabled = false;
+            ShowMoreButton.Visibility = Visibility.Collapsed;
             TranscriptTextBox.Text = zh ? "正在获取字幕..." : "Fetching transcript tracks...";
             try
             {
@@ -159,8 +212,25 @@ namespace SimpVid_Gist_WPF
 
                 string targetLangCode = (LanguageCodeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
 
-                var trackInfo = trackManifest.GetByLanguage(targetLangCode)
-                                ?? trackManifest.Tracks.FirstOrDefault();
+                var trackInfo = TryGetTrackByCode(trackManifest, targetLangCode);
+
+                if (trackInfo == null)
+                {
+                    bool autoRetry = ShowRetryDialog(targetLangCode);
+                    if (autoRetry)
+                    {
+                        foreach (var code in AllLangCodes)
+                        {
+                            if (code == targetLangCode || (targetLangCode == "zh" && (code == "zh-Hans" || code == "zh-Hant")))
+                                continue;
+                            trackInfo = TryGetTrackByCode(trackManifest, code);
+                            if (trackInfo != null)
+                                break;
+                        }
+                    }
+                }
+
+                trackInfo ??= trackManifest.Tracks.FirstOrDefault();
 
                 if (trackInfo != null)
                 {
@@ -178,17 +248,32 @@ namespace SimpVid_Gist_WPF
                         }
                     }
 
-                    TranscriptTextBox.Text = transcriptBuilder.ToString();
+                    DisplayTranscript(transcriptBuilder.ToString());
                     SummarizeButton.IsEnabled = true;
                 }
                 else
                 {
-                    TranscriptTextBox.Text = zh ? $"未找到该视频的语言为 {targetLangCode} 的字幕。" : $"No transcript or captions found for this video in language {targetLangCode}.";
+                    string msg = zh ? "未找到该视频的任何字幕。" : "No captions found for this video.";
+                    TranscriptTextBox.Text = msg;
                 }
+            }
+            catch (HttpRequestException)
+            {
+                string msg = zh ? "网络连接失败，请检查网络设置。" : "Network connection failed. Please check your internet connection.";
+                MessageBox.Show(msg, zh ? "网络错误" : "Network Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                TranscriptTextBox.Text = "";
+            }
+            catch (TaskCanceledException)
+            {
+                string msg = zh ? "请求超时，请稍后重试。" : "Request timed out. Please try again.";
+                MessageBox.Show(msg, zh ? "超时" : "Timeout", MessageBoxButton.OK, MessageBoxImage.Warning);
+                TranscriptTextBox.Text = "";
             }
             catch (Exception ex)
             {
-                TranscriptTextBox.Text = zh ? $"获取字幕时出错: {ex.Message}" : $"Error retrieving transcript: {ex.Message}";
+                string msg = zh ? $"获取字幕时出错: {ex.Message}" : $"Error retrieving transcript: {ex.Message}";
+                MessageBox.Show(msg, zh ? "错误" : "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                TranscriptTextBox.Text = "";
             }
             finally
             {
@@ -339,6 +424,121 @@ namespace SimpVid_Gist_WPF
             {
                 MessageBox.Show(zh ? $"保存失败: {ex.Message}" : $"Failed to save: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private bool ShowRetryDialog(string langCode)
+        {
+            bool zh = Localization.IsChinese;
+
+            var dialog = new Window
+            {
+                Title = zh ? "字幕获取提示" : "Transcript Notice",
+                Width = 420,
+                Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow,
+                ShowInTaskbar = false
+            };
+
+            var panel = new StackPanel { Margin = new Thickness(16) };
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = zh
+                    ? $"未找到语言 \"{langCode}\" 的字幕。请选择操作："
+                    : $"No transcript found for language \"{langCode}\". Choose an option:",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 16)
+            });
+
+            bool result = false;
+            var autoBtn = new Button
+            {
+                Content = zh ? "自动重试（尝试所有可用语言，较慢）" : "Auto-retry (try all available languages, slower)",
+                Height = 32,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            autoBtn.Click += (_, _) => { result = true; dialog.Close(); };
+            panel.Children.Add(autoBtn);
+
+            var manualBtn = new Button
+            {
+                Content = zh ? "手动重试（返回并重新选择语言）" : "Manual retry (go back and change language)",
+                Height = 32
+            };
+            manualBtn.Click += (_, _) => { result = false; dialog.Close(); };
+            panel.Children.Add(manualBtn);
+
+            dialog.Content = panel;
+            dialog.ShowDialog();
+            return result;
+        }
+
+        private void CheckFirstRun()
+        {
+            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string myAppFolder = System.IO.Path.Combine(appDataPath, "SimpVid Gist");
+            string filePath = System.IO.Path.Combine(myAppFolder, "lang_setting.txt");
+
+            if (File.Exists(filePath))
+            {
+                string savedLang = File.ReadAllText(filePath, Encoding.UTF8).Trim();
+                Localization.IsChinese = savedLang == "zh";
+                return;
+            }
+
+            var dialog = new Window
+            {
+                Title = "Select Language / 选择语言",
+                Width = 350,
+                Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow,
+                ShowInTaskbar = false
+            };
+
+            var panel = new StackPanel { Margin = new Thickness(16) };
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Please select your language / 请选择语言",
+                TextAlignment = TextAlignment.Center,
+                FontSize = 16,
+                Margin = new Thickness(0, 0, 0, 20)
+            });
+
+            string chosenLang = "en";
+
+            var enBtn = new Button
+            {
+                Content = "English",
+                Height = 36,
+                Margin = new Thickness(0, 0, 0, 8),
+                FontSize = 14
+            };
+            enBtn.Click += (_, _) => { chosenLang = "en"; dialog.Close(); };
+            panel.Children.Add(enBtn);
+
+            var zhBtn = new Button
+            {
+                Content = "中文",
+                Height = 36,
+                FontSize = 14
+            };
+            zhBtn.Click += (_, _) => { chosenLang = "zh"; dialog.Close(); };
+            panel.Children.Add(zhBtn);
+
+            dialog.Content = panel;
+            dialog.ShowDialog();
+
+            Localization.IsChinese = chosenLang == "zh";
+
+            if (!Directory.Exists(myAppFolder))
+                Directory.CreateDirectory(myAppFolder);
+            File.WriteAllText(filePath, chosenLang, Encoding.UTF8);
         }
 
         private void LoadFromAppData()

@@ -95,8 +95,7 @@
                 <TextBlock x:Name="SubtitleLangLabel" Margin="0,15,0,0" FontWeight="SemiBold">Subtitle Language</TextBlock>
                 <ComboBox Name="LanguageCodeComboBox" SelectedIndex="0" Margin="0,10,0,0">
                     <ComboBoxItem Content="English (en)" Tag="en"/>
-                    <ComboBoxItem Content="Simplified Chinese (zh-Hans)" Tag="zh-Hans"/>
-                    <ComboBoxItem Content="Traitional Chinese (zh-Hant)" Tag="zh-Hant"/>
+                    <ComboBoxItem Content="Chinese (zh)" Tag="zh"/>
                     <ComboBoxItem Content="Japanese (ja)" Tag="ja"/>
                     <ComboBoxItem Content="Korean (ko)" Tag="ko"/>
                     <ComboBoxItem Content="Spainish (es)" Tag="es"/>
@@ -110,6 +109,7 @@
 
                 <TextBlock x:Name="TranscriptLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Transcript</TextBlock>
                 <TextBox x:Name="TranscriptTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True"/>
+                <Button x:Name="ShowMoreButton" Content="▼" Visibility="Collapsed" Margin="0,5,0,0" HorizontalAlignment="Center" Background="Transparent" BorderThickness="0" Cursor="Hand" FontSize="16" Click="ShowMoreButton_Click"/>
 
                 <TextBlock x:Name="ExportFormatLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Export Format</TextBlock>
                 <ComboBox x:Name="ExportFormatComboBox" Margin="0,0,0,0"/>
