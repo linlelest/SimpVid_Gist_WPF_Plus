@@ -331,7 +331,7 @@ namespace SimpVid_Gist_WPF
         private async void SummarizeButton_Click(object sender, RoutedEventArgs e)
         {
             string apiKey = ApiKeyTextBox.Password.Trim();
-            string transcript = TranscriptTextBox.Text.Trim();
+            string transcript = _fullTranscript.Trim();
             string apiUrl = BaseUrlTextBox.Text.Trim();
             string modelName = ModelTextBox.Text.Trim();
             bool zh = Localization.IsChinese;
@@ -386,8 +386,8 @@ namespace SimpVid_Gist_WPF
                 apiUrl = apiUrl.TrimEnd('/') + "/chat/completions";
 
             string systemPrompt = zh
-                ? $"你是一个专业的AI总结助手。请将以下YouTube字幕总结为清晰、有条理的段落。可以使用要点。\n\n【硬性约束】总结内容必须严格控制在{wordLimit}字以内！你必须精确计算字数，不得超过{wordLimit}字。如果超过限制，请删减内容直到满足要求。三项原则：1)输出不超过{wordLimit}字 2)保留核心信息 3)语言简洁精炼。\n\n直接输出总结内容，无需任何额外说明。"
-                : $"You are an expert AI summarizer. Summarize the following YouTube transcript into clear, structured paragraphs. You may use bullet points.\n\n【STRICT CONSTRAINT】The summary MUST be within {wordLimit} characters — no exceptions! You MUST count characters precisely and NEVER exceed {wordLimit}. If you exceed the limit, trim until it fits. Three rules: 1) Output ≤ {wordLimit} characters 2) Keep all key information 3) Be concise.\n\nOutput the summary directly without any additional notes.";
+                ? $"你是一个专业的AI总结助手。请将以下YouTube字幕总结为清晰、有条理的段落。可以使用要点。\n\n【硬性约束】总结必须精确输出{wordLimit}个字，不得多不得少！你必须精确计数，输出字数必须严格等于{wordLimit}。如果字数不符，请调整内容直到完全匹配。三项原则：1)输出精确{wordLimit}字 2)保留核心信息 3)语言简洁精炼。\n\n直接输出总结内容，无需任何额外说明。"
+                : $"You are an expert AI summarizer. Summarize the following YouTube transcript into clear, structured paragraphs. You may use bullet points.\n\n【STRICT CONSTRAINT】The summary must be EXACTLY {wordLimit} characters — no more, no less! You MUST count precisely and output exactly {wordLimit} characters. If the count doesn't match, adjust the content until it does. Three rules: 1) Output exactly {wordLimit} characters 2) Keep all key information 3) Be concise.\n\nOutput the summary directly without any additional notes.";
 
             var requestBody = new JsonObject
             {
@@ -405,6 +405,7 @@ namespace SimpVid_Gist_WPF
                         ["content"] = transcriptContent
                     }
                 },
+                ["max_tokens"] = Math.Max(wordLimit * 2, 4096),
                 ["temperature"] = 0.5
             };
 
