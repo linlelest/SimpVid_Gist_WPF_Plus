@@ -35,6 +35,17 @@ namespace SimpVid_Gist_WPF
         private Rect _normalBounds;
         private bool _isMaximized;
 
+        private enum LayoutMode { Split, Scroll }
+        private LayoutMode _currentLayout = LayoutMode.Scroll;
+        private bool _isAnimatingScroll = false;
+        private int _currentScrollSection = 0;
+        private static readonly string LayoutModeFile =
+            System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                                   "SimpVid Gist", "layout_mode.txt");
+        private static readonly string LayoutHintFile =
+            System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                                   "SimpVid Gist", "layout_hint_shown.txt");
+
         private class ExportFormatItem
         {
             public string Display { get; set; } = "";
@@ -74,6 +85,11 @@ namespace SimpVid_Gist_WPF
             BaseUrlTextBox.TextChanged += (_, _) => AutoSaveConfig();
             ModelTextBox.TextChanged += (_, _) => AutoSaveConfig();
             ApiKeyTextBox.PasswordChanged += (_, _) => AutoSaveConfig();
+
+            LoadLayoutPreference();
+            ApplyLayoutMode(_currentLayout);
+            ApplyLanguage();
+            CheckLayoutHintFirstRun();
         }
 
         private void AutoSaveConfig()
@@ -233,6 +249,16 @@ namespace SimpVid_Gist_WPF
 
             bool isCustom = (SummaryLengthComboBox.SelectedItem as SummaryLengthItem)?.WordCount == null;
             CustomLengthTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+
+            // Localize layout toggle control + hint popup
+            UpdateLayoutToggleButtonVisual();
+            if (LayoutHintPopup.IsOpen)
+            {
+                LayoutHintTitle.Text = zh ? "布局切换" : "Switch Layout";
+                LayoutHintBody.Text = zh
+                    ? "点此按钮可在「上下滚动」与「左右分栏」两种界面布局间切换。"
+                    : "Click this button to switch between Scroll and Split layouts.";
+            }
         }
 
         private void LangToggleButton_Click(object sender, RoutedEventArgs e)
@@ -1227,6 +1253,200 @@ document.addEventListener('mouseup',function(){{drag=0;}});
             }
 
             return result;
+        }
+
+        // ===== Layout mode management =====
+
+        private void ApplyLayoutMode(LayoutMode mode)
+        {
+            DetachFromParent(SubtitleSectionPanel);
+            DetachFromParent(AiSectionPanel);
+
+            if (mode == LayoutMode.Split)
+            {
+                SubtitleSectionPanel.Margin = new Thickness(16);
+                AiSectionPanel.Margin = new Thickness(16);
+                Grid.SetColumn(SubtitleSectionPanel, 0);
+                Grid.SetColumn(AiSectionPanel, 2);
+                SplitLayoutGrid.Children.Add(SubtitleSectionPanel);
+                SplitLayoutGrid.Children.Add(AiSectionPanel);
+                SplitLayoutGrid.Visibility = Visibility.Visible;
+                ScrollLayoutViewer.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                SubtitleSectionPanel.Margin = new Thickness(0);
+                AiSectionPanel.Margin = new Thickness(0);
+                ScrollSectionSubtitle.Child = SubtitleSectionPanel;
+                ScrollSectionAi.Child = AiSectionPanel;
+                ScrollLayoutViewer.Visibility = Visibility.Visible;
+                SplitLayoutGrid.Visibility = Visibility.Collapsed;
+                ScrollLayoutViewer.ScrollToTop();
+                _currentScrollSection = 0;
+            }
+            _currentLayout = mode;
+            UpdateLayoutToggleButtonVisual();
+
+            // Re-render Mermaid diagram if needed (WebBrowser may lose state on reparent)
+            if (!string.IsNullOrEmpty(_lastMermaidCode) && _currentMode == AiMode.KnowledgeGraph)
+            {
+                _ = RenderMermaidAsync(_lastMermaidCode);
+            }
+        }
+
+        private static void DetachFromParent(FrameworkElement element)
+        {
+            if (element.Parent == null) return;
+            switch (element.Parent)
+            {
+                case Panel p:
+                    p.Children.Remove(element);
+                    break;
+                case Border b:
+                    b.Child = null;
+                    break;
+                case ContentControl c:
+                    c.Content = null;
+                    break;
+            }
+        }
+
+        private void LayoutToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            var next = _currentLayout == LayoutMode.Split ? LayoutMode.Scroll : LayoutMode.Split;
+            ApplyLayoutMode(next);
+            SaveLayoutPreference();
+            LayoutHintPopup.IsOpen = false;
+        }
+
+        private void UpdateLayoutToggleButtonVisual()
+        {
+            bool zh = Localization.IsChinese;
+            LayoutToggleButton.ToolTip = _currentLayout == LayoutMode.Split
+                ? (zh ? "当前：分栏模式 · 点击切换为滚动模式" : "Current: Split · Click to switch to Scroll")
+                : (zh ? "当前：滚动模式 · 点击切换为分栏模式" : "Current: Scroll · Click to switch to Split");
+        }
+
+        private void ScrollLayout_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (_currentLayout != LayoutMode.Scroll) return;
+            if (_isAnimatingScroll) { e.Handled = true; return; }
+
+            double offset = ScrollLayoutViewer.VerticalOffset;
+            double section0H = ScrollSectionSubtitle.ActualHeight;
+            if (section0H <= 0) return;
+
+            bool atTopOfSection0 = offset <= 5;
+
+            if (e.Delta < 0) // wheel down
+            {
+                if (atTopOfSection0)
+                {
+                    e.Handled = true;
+                    AnimateScrollTo(section0H);
+                }
+                // else: default free scroll within section 1
+            }
+            else // wheel up
+            {
+                // At or near section 1 top (within 100px) → snap to section 0
+                if (offset <= section0H + 100 && offset >= section0H - 5)
+                {
+                    e.Handled = true;
+                    AnimateScrollTo(0);
+                }
+                else if (atTopOfSection0)
+                {
+                    e.Handled = true; // no-op, already at top
+                }
+                // else: default free scroll within section 1
+            }
+        }
+
+        private void AnimateScrollTo(double targetOffset)
+        {
+            _isAnimatingScroll = true;
+            var anim = new DoubleAnimation
+            {
+                From = ScrollLayoutViewer.VerticalOffset,
+                To = targetOffset,
+                Duration = TimeSpan.FromMilliseconds(550),
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
+            };
+            anim.Completed += (s, _) =>
+            {
+                _isAnimatingScroll = false;
+                _currentScrollSection = targetOffset < 1 ? 0 : 1;
+            };
+            ScrollViewerAnimationBehavior.SetVerticalOffset(ScrollLayoutViewer, ScrollLayoutViewer.VerticalOffset);
+            ScrollLayoutViewer.BeginAnimation(ScrollViewerAnimationBehavior.VerticalOffsetProperty, anim);
+        }
+
+        private void LoadLayoutPreference()
+        {
+            try
+            {
+                if (File.Exists(LayoutModeFile))
+                {
+                    string v = File.ReadAllText(LayoutModeFile, Encoding.UTF8).Trim().ToLower();
+                    _currentLayout = v == "split" ? LayoutMode.Split : LayoutMode.Scroll;
+                }
+                else
+                {
+                    _currentLayout = LayoutMode.Scroll;
+                }
+            }
+            catch { _currentLayout = LayoutMode.Scroll; }
+        }
+
+        private void SaveLayoutPreference()
+        {
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(LayoutModeFile)!;
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(LayoutModeFile,
+                    _currentLayout == LayoutMode.Split ? "split" : "scroll", Encoding.UTF8);
+            }
+            catch { /* ignore */ }
+        }
+
+        private void CheckLayoutHintFirstRun()
+        {
+            try
+            {
+                if (File.Exists(LayoutHintFile)) return;
+                bool zh = Localization.IsChinese;
+                LayoutHintTitle.Text = zh ? "布局切换" : "Switch Layout";
+                LayoutHintBody.Text = zh
+                    ? "点此按钮可在「上下滚动」与「左右分栏」两种界面布局间切换。"
+                    : "Click this button to switch between Scroll and Split layouts.";
+                LayoutHintPopup.IsOpen = true;
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+                timer.Tick += (s, _) => { LayoutHintPopup.IsOpen = false; timer.Stop(); };
+                timer.Start();
+                string dir = System.IO.Path.GetDirectoryName(LayoutHintFile)!;
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                File.WriteAllText(LayoutHintFile, "1", Encoding.UTF8);
+            }
+            catch { /* ignore */ }
+        }
+    }
+
+    public static class ScrollViewerAnimationBehavior
+    {
+        public static readonly DependencyProperty VerticalOffsetProperty =
+            DependencyProperty.RegisterAttached(
+                "VerticalOffset", typeof(double), typeof(ScrollViewerAnimationBehavior),
+                new PropertyMetadata(0.0, OnVerticalOffsetChanged));
+
+        public static double GetVerticalOffset(DependencyObject obj) => (double)obj.GetValue(VerticalOffsetProperty);
+        public static void SetVerticalOffset(DependencyObject obj, double value) => obj.SetValue(VerticalOffsetProperty, value);
+
+        private static void OnVerticalOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is ScrollViewer sv)
+                sv.ScrollToVerticalOffset((double)e.NewValue);
         }
     }
 }
