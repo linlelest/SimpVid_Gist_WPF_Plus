@@ -1,6 +1,5 @@
 using Microsoft.Win32;
 using System.Net;
-using System.Runtime.InteropServices;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -11,7 +10,6 @@ using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 using YoutubeExplode;
 using YoutubeExplode.Videos.ClosedCaptions;
 
@@ -36,43 +34,6 @@ namespace SimpVid_Gist_WPF
 
         private Rect _normalBounds;
         private bool _isMaximized;
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
-
-        [DllImport("user32.dll")]
-        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MONITORINFO
-        {
-            public int cbSize;
-            public RECT rcMonitor;
-            public RECT rcWork;
-            public uint dwFlags;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct RECT
-        {
-            public int left, top, right, bottom;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct POINT
-        {
-            public int x, y;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct MINMAXINFO
-        {
-            public POINT ptReserved;
-            public POINT ptMaxSize;
-            public POINT ptMaxPosition;
-            public POINT ptMinTrackSize;
-            public POINT ptMaxTrackSize;
-        }
 
         private class ExportFormatItem
         {
@@ -857,7 +818,7 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-        private async Task RenderMermaidAsync(string mermaidCode)
+        private static string StripCodeFences(string mermaidCode)
         {
             string code = mermaidCode.Trim();
             if (code.StartsWith("```"))
@@ -868,31 +829,49 @@ namespace SimpVid_Gist_WPF
                 if (end >= 0) code = code[..end];
                 code = code.Trim();
             }
+            return code;
+        }
 
-            string html = $@"<!DOCTYPE html>
+        private async Task RenderMermaidAsync(string mermaidCode)
+        {
+            string code = StripCodeFences(mermaidCode);
+            if (string.IsNullOrEmpty(code)) return;
+
+            string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
+            string url = $"https://mermaid.ink/svg/{encoded}";
+
+            string html;
+            try
+            {
+                byte[] svgData = await _httpClient.GetByteArrayAsync(url);
+                string svgText = Encoding.UTF8.GetString(svgData);
+                html = $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
-<script src=""https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js""></script>
+<meta http-equiv=""X-UA-Compatible"" content=""IE=edge""/>
 <style>
 *{{margin:0;padding:0}}
 body{{overflow:hidden;width:100vw;height:100vh;background:#fff}}
-#graph{{width:100%;min-height:100vh;padding:20px;box-sizing:border-box}}
-svg{{max-width:none!important}}
+#graph{{width:100%;min-height:100vh;padding:20px;box-sizing:border-box;text-align:center}}
+#graph svg{{max-width:100%;height:auto}}
 </style>
 </head><body>
-<div id=""graph"" class=""mermaid"">
-{code}
+<div id=""graph"">
+{svgText}
 </div>
 <script>
-mermaid.initialize({{theme:'default',securityLevel:'loose'}});
-mermaid.run({{nodes:[document.querySelector('.mermaid')]}});
-let scale=1,tx=0,ty=0;
-const g=document.getElementById('graph');
-document.addEventListener('wheel',e=>{{e.preventDefault();let d=e.deltaY>0?.9:1.1;scale*=d;scale=Math.max(.1,Math.min(5,scale));g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}},{{passive:false}});
-let drag=0,dx,dy;
-document.addEventListener('mousedown',e=>{{drag=1;dx=e.clientX-tx;dy=e.clientY-ty;}});
-document.addEventListener('mousemove',e=>{{if(drag){{tx=e.clientX-dx;ty=e.clientY-dy;g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}}}});
-document.addEventListener('mouseup',()=>drag=0);
+var scale=1,tx=0,ty=0;
+var g=document.getElementById('graph');
+document.addEventListener('wheel',function(e){{e.preventDefault();var d=e.deltaY>0?.9:1.1;scale*=d;scale=Math.max(.1,Math.min(5,scale));g.style.transform='scale('+scale+') translate('+(tx/scale)+'px,'+(ty/scale)+'px)';g.style.transformOrigin='0 0';}},false);
+var drag=0,dx,dy;
+document.addEventListener('mousedown',function(e){{drag=1;dx=e.clientX-tx;dy=e.clientY-ty;}});
+document.addEventListener('mousemove',function(e){{if(drag){{tx=e.clientX-dx;ty=e.clientY-dy;g.style.transform='scale('+scale+') translate('+(tx/scale)+'px,'+(ty/scale)+'px)';g.style.transformOrigin='0 0';}}}});
+document.addEventListener('mouseup',function(){{drag=0;}});
 </script></body></html>";
+            }
+            catch (Exception ex)
+            {
+                html = $@"<!DOCTYPE html><html><head><meta charset=""utf-8""/></head><body><p style=""color:red;padding:20px;"">{System.Net.WebUtility.HtmlEncode(ex.Message)}</p></body></html>";
+            }
 
             string tempFile = Path.Combine(Path.GetTempPath(), "mermaid_preview.html");
             await File.WriteAllTextAsync(tempFile, html, Encoding.UTF8);
@@ -902,19 +881,11 @@ document.addEventListener('mouseup',()=>drag=0);
         private async void ExportSvgButton_Click(object sender, RoutedEventArgs e)
         {
             bool zh = Localization.IsChinese;
-            string code = _lastMermaidCode.Trim();
+            string code = StripCodeFences(_lastMermaidCode);
             if (string.IsNullOrEmpty(code))
             {
                 MessageBox.Show(zh ? "请先生成知识图表。" : "Please generate a knowledge graph first.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
-            }
-            if (code.StartsWith("```"))
-            {
-                int start = code.IndexOf('\n');
-                if (start > 0) code = code[(start + 1)..];
-                int end = code.LastIndexOf("```");
-                if (end >= 0) code = code[..end];
-                code = code.Trim();
             }
 
             var dialog = new SaveFileDialog
@@ -928,7 +899,7 @@ document.addEventListener('mouseup',()=>drag=0);
             {
                 try
                 {
-                    string encoded = Uri.EscapeDataString(code);
+                    string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
                     string url = $"https://mermaid.ink/svg/{encoded}";
                     byte[] svgData = await _httpClient.GetByteArrayAsync(url);
                     await File.WriteAllBytesAsync(dialog.FileName, svgData);
@@ -944,19 +915,11 @@ document.addEventListener('mouseup',()=>drag=0);
         private async void ExportPngButton_Click(object sender, RoutedEventArgs e)
         {
             bool zh = Localization.IsChinese;
-            string code = _lastMermaidCode.Trim();
+            string code = StripCodeFences(_lastMermaidCode);
             if (string.IsNullOrEmpty(code))
             {
                 MessageBox.Show(zh ? "请先生成知识图表。" : "Please generate a knowledge graph first.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
-            }
-            if (code.StartsWith("```"))
-            {
-                int start = code.IndexOf('\n');
-                if (start > 0) code = code[(start + 1)..];
-                int end = code.LastIndexOf("```");
-                if (end >= 0) code = code[..end];
-                code = code.Trim();
             }
 
             var dialog = new SaveFileDialog
@@ -970,7 +933,7 @@ document.addEventListener('mouseup',()=>drag=0);
             {
                 try
                 {
-                    string encoded = Uri.EscapeDataString(code);
+                    string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
                     string url = $"https://mermaid.ink/img/{encoded}";
                     byte[] pngData = await _httpClient.GetByteArrayAsync(url);
                     await File.WriteAllBytesAsync(dialog.FileName, pngData);
