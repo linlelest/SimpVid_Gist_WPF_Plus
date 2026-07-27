@@ -835,17 +835,22 @@ namespace SimpVid_Gist_WPF
         private async Task RenderMermaidAsync(string mermaidCode)
         {
             string code = StripCodeFences(mermaidCode);
-            if (string.IsNullOrEmpty(code)) return;
-
-            string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
-            string url = $"https://mermaid.ink/svg/{encoded}";
+            bool zh = Localization.IsChinese;
 
             string html;
-            try
+            if (string.IsNullOrWhiteSpace(code))
             {
-                byte[] svgData = await _httpClient.GetByteArrayAsync(url);
-                string svgText = Encoding.UTF8.GetString(svgData);
-                html = $@"<!DOCTYPE html>
+                html = $@"<!DOCTYPE html><html><head><meta charset=""utf-8""/></head><body><p style=""color:red;padding:20px;"">{System.Net.WebUtility.HtmlEncode(zh ? "AI 返回了空的思维导图代码。" : "AI returned empty mindmap code.")}</p></body></html>";
+            }
+            else
+            {
+                try
+                {
+                    string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
+                    string url = $"https://mermaid.ink/svg/{encoded}";
+                    byte[] svgData = await _httpClient.GetByteArrayAsync(url);
+                    string svgText = Encoding.UTF8.GetString(svgData);
+                    html = $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <meta http-equiv=""X-UA-Compatible"" content=""IE=edge""/>
 <style>
@@ -867,52 +872,31 @@ document.addEventListener('mousedown',function(e){{drag=1;dx=e.clientX-tx;dy=e.c
 document.addEventListener('mousemove',function(e){{if(drag){{tx=e.clientX-dx;ty=e.clientY-dy;g.style.transform='scale('+scale+') translate('+(tx/scale)+'px,'+(ty/scale)+'px)';g.style.transformOrigin='0 0';}}}});
 document.addEventListener('mouseup',function(){{drag=0;}});
 </script></body></html>";
-            }
-            catch (Exception ex)
-            {
-                html = $@"<!DOCTYPE html><html><head><meta charset=""utf-8""/></head><body><p style=""color:red;padding:20px;"">{System.Net.WebUtility.HtmlEncode(ex.Message)}</p></body></html>";
+                }
+                catch (Exception ex)
+                {
+                    html = $@"<!DOCTYPE html><html><head><meta charset=""utf-8""/></head><body><p style=""color:red;padding:20px;"">{System.Net.WebUtility.HtmlEncode(ex.Message)}</p></body></html>";
+                }
             }
 
             string tempFile = Path.Combine(Path.GetTempPath(), "mermaid_preview.html");
             await File.WriteAllTextAsync(tempFile, html, Encoding.UTF8);
-            MermaidBrowser.Navigate(tempFile);
+            MermaidBrowser.Navigate(new Uri(tempFile));
         }
 
         private async void ExportSvgButton_Click(object sender, RoutedEventArgs e)
         {
-            bool zh = Localization.IsChinese;
-            string code = StripCodeFences(_lastMermaidCode);
-            if (string.IsNullOrEmpty(code))
-            {
-                MessageBox.Show(zh ? "请先生成知识图表。" : "Please generate a knowledge graph first.", "", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var dialog = new SaveFileDialog
-            {
-                Filter = "SVG Files (*.svg)|*.svg|All Files (*.*)|*.*",
-                DefaultExt = "svg",
-                FileName = "KnowledgeGraph_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                try
-                {
-                    string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
-                    string url = $"https://mermaid.ink/svg/{encoded}";
-                    byte[] svgData = await _httpClient.GetByteArrayAsync(url);
-                    await File.WriteAllBytesAsync(dialog.FileName, svgData);
-                    MessageBox.Show(zh ? "SVG已导出。" : "SVG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
+            await ExportMermaidAsync("svg", "SVG Files (*.svg)|*.svg|All Files (*.*)|*.*", "svg",
+                zh => zh ? "SVG已导出。" : "SVG exported.");
         }
 
         private async void ExportPngButton_Click(object sender, RoutedEventArgs e)
+        {
+            await ExportMermaidAsync("img", "PNG Files (*.png)|*.png|All Files (*.*)|*.*", "png",
+                zh => zh ? "PNG已导出。" : "PNG exported.");
+        }
+
+        private async Task ExportMermaidAsync(string endpoint, string filter, string ext, Func<bool, string> successMsg)
         {
             bool zh = Localization.IsChinese;
             string code = StripCodeFences(_lastMermaidCode);
@@ -924,25 +908,28 @@ document.addEventListener('mouseup',function(){{drag=0;}});
 
             var dialog = new SaveFileDialog
             {
-                Filter = "PNG Files (*.png)|*.png|All Files (*.*)|*.*",
-                DefaultExt = "png",
+                Filter = filter,
+                DefaultExt = ext,
                 FileName = "KnowledgeGraph_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")
             };
 
-            if (dialog.ShowDialog() == true)
+            if (dialog.ShowDialog() != true) return;
+
+            try
             {
-                try
-                {
-                    string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
-                    string url = $"https://mermaid.ink/img/{encoded}";
-                    byte[] pngData = await _httpClient.GetByteArrayAsync(url);
-                    await File.WriteAllBytesAsync(dialog.FileName, pngData);
-                    MessageBox.Show(zh ? "PNG已导出。" : "PNG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(code));
+                string url = $"https://mermaid.ink/{endpoint}/{encoded}";
+                byte[] data = await _httpClient.GetByteArrayAsync(url);
+                await File.WriteAllBytesAsync(dialog.FileName, data);
+                MessageBox.Show(successMsg(zh), "", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode != null)
+            {
+                MessageBox.Show(zh ? $"导出失败 (HTTP {(int)ex.StatusCode}): {ex.Message}" : $"Export failed (HTTP {(int)ex.StatusCode}): {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
