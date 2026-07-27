@@ -1,4 +1,5 @@
 ﻿using Microsoft.Win32;
+using System.Net;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -17,8 +18,8 @@ namespace SimpVid_Gist_WPF
 {
     public partial class MainWindow : Window
     {
-        private readonly YoutubeClient _youtubeClient = new YoutubeClient();
-        private readonly HttpClient _httpClient = new HttpClient();
+        private readonly YoutubeClient _youtubeClient;
+        private readonly HttpClient _httpClient;
         private List<ClosedCaption> _captions = new List<ClosedCaption>();
         private string _fullTranscript = "";
         private bool _isExpanded = false;
@@ -52,6 +53,18 @@ namespace SimpVid_Gist_WPF
         public MainWindow()
         {
             InitializeComponent();
+
+            _httpClient = new HttpClient(new SocketsHttpHandler
+            {
+                UseProxy = true,
+                Proxy = HttpClient.DefaultProxy,
+                DefaultProxyCredentials = CredentialCache.DefaultCredentials,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+            });
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
+            _youtubeClient = new YoutubeClient(_httpClient);
+
             CheckFirstRun();
             PopulateLanguageCodes();
             PopulateExportFormats();
