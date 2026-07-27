@@ -13,7 +13,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="50"/>
-            <RowDefinition/>
+            <RowDefinition />
         </Grid.RowDefinitions>
         <DockPanel MouseDown="DockPanel_MouseDown" Background="Transparent" Grid.Row="0">
             <TextBlock Margin="16,0,0,0" FontSize="24" TextWrapping="Wrap" FontWeight="Bold" DockPanel.Dock="Left" VerticalAlignment="Center">SimpVid Gist</TextBlock>
@@ -124,7 +124,7 @@
                         Export
                     </Button>
                 </StackPanel>
-                <StackPanel Grid.Column="1">
+                <StackPanel Grid.Column="1" Margin="16">
                     <GroupBox x:Name="SummarizationGroupBox" Header="Summarization" Margin="0,10,0,0">
                         <StackPanel>
 
