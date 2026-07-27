@@ -700,9 +700,12 @@ document.addEventListener('mouseup',()=>drag=0);
             {
                 try
                 {
-                    await MermaidWebView.CoreWebView2.CapturePreviewAsync(
-                        CoreWebView2CapturePreviewImageFormat.Png,
-                        dialog.FileName);
+                    using (var stream = File.OpenWrite(dialog.FileName))
+                    {
+                        await MermaidWebView.CoreWebView2.CapturePreviewAsync(
+                            CoreWebView2CapturePreviewImageFormat.Png,
+                            stream);
+                    }
                     bool zh = Localization.IsChinese;
                     MessageBox.Show(zh ? "PNG已导出。" : "PNG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
