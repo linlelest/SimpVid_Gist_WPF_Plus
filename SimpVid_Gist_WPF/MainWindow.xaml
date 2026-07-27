@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SimpVid_Gist_WPF"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d" WindowStyle="None"
         Title="SimpVid Gist"
         Height="750" Width="450">
@@ -123,17 +124,43 @@
                     <TextBlock x:Name="ApiKeyLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">AI API key</TextBlock>
                     <PasswordBox Name="ApiKeyTextBox" PasswordChar="*"/>
 
-                    <TextBlock x:Name="SummaryLengthLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Summary Length</TextBlock>
-                    <ComboBox x:Name="SummaryLengthComboBox" SelectionChanged="SummaryLengthComboBox_SelectionChanged"/>
-                    <TextBox x:Name="CustomLengthTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
-
                     <Button x:Name="SaveButton" Margin="0,10,0,0" HorizontalAlignment="Center" Click="SaveButton_Click">Save AI Base URL and Model Name</Button>
 
-                    <Button Background="Violet" x:Name="SummarizeButton" Margin="0,10,0,20" Click="SummarizeButton_Click" IsEnabled="False" HorizontalAlignment="Center">
-                        Summarize Transcript
-                    </Button>
-                    <TextBlock x:Name="SummaryLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Summary</TextBlock>
+                    <TextBlock x:Name="ModeLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Mode</TextBlock>
+                    <ComboBox x:Name="ModeComboBox" SelectionChanged="ModeComboBox_SelectionChanged"/>
 
+                    <StackPanel x:Name="SummaryPanel">
+                        <TextBlock x:Name="SummaryTargetLangLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Target Summary Language</TextBlock>
+                        <ComboBox x:Name="SummaryTargetLangComboBox" SelectionChanged="SummaryTargetLangComboBox_SelectionChanged"/>
+                        <TextBox x:Name="SummaryCustomLangTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
+                        <TextBlock x:Name="SummaryLengthLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Summary Length</TextBlock>
+                        <ComboBox x:Name="SummaryLengthComboBox" SelectionChanged="SummaryLengthComboBox_SelectionChanged"/>
+                        <TextBox x:Name="CustomLengthTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
+                    </StackPanel>
+
+                    <StackPanel x:Name="TranslationPanel" Visibility="Collapsed">
+                        <TextBlock x:Name="TranslationTargetLangLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Target Translation Language</TextBlock>
+                        <ComboBox x:Name="TranslationTargetLangComboBox" SelectionChanged="TranslationTargetLangComboBox_SelectionChanged"/>
+                        <TextBox x:Name="TranslationCustomLangTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
+                    </StackPanel>
+
+                    <StackPanel x:Name="KnowledgeGraphPanel" Visibility="Collapsed">
+                        <TextBlock x:Name="KnowledgeTargetLangLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Target Language</TextBlock>
+                        <ComboBox x:Name="KnowledgeTargetLangComboBox" SelectionChanged="KnowledgeTargetLangComboBox_SelectionChanged"/>
+                        <TextBox x:Name="KnowledgeCustomLangTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
+                        <TextBlock x:Name="KnowledgePreviewLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Preview</TextBlock>
+                        <Border BorderBrush="Gray" BorderThickness="1" Height="300" Margin="0,0,0,5">
+                            <wv2:WebView2 x:Name="MermaidWebView"/>
+                        </Border>
+                        <WrapPanel HorizontalAlignment="Center" Margin="0,0,0,10">
+                            <Button x:Name="ExportSvgButton" Content="Export SVG" Margin="0,0,5,0" Click="ExportSvgButton_Click"/>
+                            <Button x:Name="ExportPngButton" Content="Export PNG" Click="ExportPngButton_Click"/>
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <Button Background="Violet" x:Name="SummarizeButton" Margin="0,10,0,20" Click="SummarizeButton_Click" IsEnabled="False" HorizontalAlignment="Center"/>
+
+                    <TextBlock x:Name="SummaryLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Result</TextBlock>
                     <TextBox x:Name="SummaryTextBox" MinHeight="100" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"/>
                     </StackPanel>
                 </GroupBox>

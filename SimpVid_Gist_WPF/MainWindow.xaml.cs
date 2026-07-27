@@ -1,4 +1,5 @@
 ﻿using Microsoft.Win32;
+using Microsoft.Web.WebView2.Wpf;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -9,6 +10,7 @@ using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using YoutubeExplode;
 using YoutubeExplode.Videos.ClosedCaptions;
 
@@ -24,6 +26,15 @@ namespace SimpVid_Gist_WPF
         private const int MaxPreviewLines = 5;
 
         private static readonly string[] AllLangCodes = { "en", "zh-Hans", "zh-Hant", "ja", "ko", "es", "fr", "ru" };
+
+        private enum AiMode { Summary, Translation, KnowledgeGraph }
+        private AiMode _currentMode = AiMode.Summary;
+        private string _lastMermaidCode = "";
+
+        private static readonly string[][] CommonTargetLangs = [
+            ["en", "zh", "ja", "ko", "es", "fr", "de", "ru", "pt", "it"],
+            ["English", "中文", "日本語", "한국어", "Español", "Français", "Deutsch", "Русский", "Português", "Italiano"]
+        ];
 
         private class ExportFormatItem
         {
@@ -43,6 +54,10 @@ namespace SimpVid_Gist_WPF
             CheckFirstRun();
             PopulateLanguageCodes();
             PopulateExportFormats();
+            PopulateModes();
+            PopulateTargetLanguages(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
+            PopulateTargetLanguages(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
+            PopulateTargetLanguages(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
             PopulateSummaryLengths();
             ApplyLanguage();
             LoadFromAppData();
@@ -113,6 +128,29 @@ namespace SimpVid_Gist_WPF
             SummaryLengthComboBox.SelectedIndex = 2;
         }
 
+        private void PopulateModes()
+        {
+            bool zh = Localization.IsChinese;
+            ModeComboBox.Items.Clear();
+            ModeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "AI总结" : "AI Summary", Tag = "summary" });
+            ModeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "AI翻译" : "AI Translation", Tag = "translation" });
+            ModeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "AI知识图表" : "AI Knowledge Graph", Tag = "knowledge" });
+            ModeComboBox.SelectedIndex = 0;
+        }
+
+        private void PopulateTargetLanguages(ComboBox comboBox, TextBox customTextBox)
+        {
+            bool zh = Localization.IsChinese;
+            comboBox.Items.Clear();
+            string[] codes = CommonTargetLangs[0];
+            string[] names = CommonTargetLangs[1];
+            for (int i = 0; i < codes.Length; i++)
+                comboBox.Items.Add(new ComboBoxItem { Content = $"{names[i]} ({codes[i]})", Tag = codes[i] });
+            comboBox.Items.Add(new ComboBoxItem { Content = zh ? "自定义" : "Custom", Tag = "custom" });
+            comboBox.SelectedIndex = Localization.IsChinese ? 1 : 0;
+            customTextBox.Visibility = Visibility.Collapsed;
+        }
+
         private void ApplyLanguage()
         {
             bool zh = Localization.IsChinese;
@@ -132,23 +170,43 @@ namespace SimpVid_Gist_WPF
             ExportFormatLabel.Text = zh ? "导出格式" : "Export Format";
             ExportButton.Content = zh ? "导出" : "Export";
 
-            SummarizationGroupBox.Header = zh ? "AI总结" : "Summarization";
+            SummarizationGroupBox.Header = zh ? "AI处理" : "AI Processing";
             BaseUrlLabel.Text = zh ? "AI接口地址" : "AI Base URL (API Endpoint)";
             BaseUrlPlaceholder.Text = zh ? "例: https://api.openai.com/v1" : "e.g. https://api.openai.com/v1";
             BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
             ModelNameLabel.Text = zh ? "模型名称" : "Model Name";
             ApiKeyLabel.Text = zh ? "API密钥" : "AI API key";
-            SummaryLengthLabel.Text = zh ? "总结长度" : "Summary Length";
             SaveButton.Content = zh ? "保存AI配置" : "Save AI Base URL and Model Name";
-            SummarizeButton.Content = zh ? "总结字幕" : "Summarize Transcript";
-            SummaryLabel.Text = zh ? "总结" : "Summary";
+            ModeLabel.Text = zh ? "模式" : "Mode";
+            SummaryTargetLangLabel.Text = zh ? "目标总结语言" : "Target Summary Language";
+            SummaryLengthLabel.Text = zh ? "总结字数" : "Summary Length";
+            TranslationTargetLangLabel.Text = zh ? "目标翻译语言" : "Target Translation Language";
+            KnowledgeTargetLangLabel.Text = zh ? "目标语言" : "Target Language";
+            KnowledgePreviewLabel.Text = zh ? "预览" : "Preview";
+            ExportSvgButton.Content = zh ? "导出SVG" : "Export SVG";
+            ExportPngButton.Content = zh ? "导出PNG" : "Export PNG";
+            SummarizeButton.Content = _currentMode switch
+            {
+                AiMode.Translation => zh ? "翻译字幕" : "Translate Transcript",
+                AiMode.KnowledgeGraph => zh ? "生成知识图表" : "Generate Knowledge Graph",
+                _ => zh ? "总结字幕" : "Summarize Transcript"
+            };
+            SummaryLabel.Text = zh ? "结果" : "Result";
 
             int langIdx = LanguageCodeComboBox.SelectedIndex;
             int expIdx = ExportFormatComboBox.SelectedIndex;
             int sumIdx = SummaryLengthComboBox.SelectedIndex;
+            int modeIdx = ModeComboBox.SelectedIndex;
+            int sumTargetIdx = SummaryTargetLangComboBox.SelectedIndex;
+            int transTargetIdx = TranslationTargetLangComboBox.SelectedIndex;
+            int knowTargetIdx = KnowledgeTargetLangComboBox.SelectedIndex;
 
             PopulateLanguageCodes();
             PopulateExportFormats();
+            PopulateModes();
+            PopulateTargetLanguages(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
+            PopulateTargetLanguages(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
+            PopulateTargetLanguages(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
             PopulateSummaryLengths();
 
             if (langIdx >= 0 && langIdx < LanguageCodeComboBox.Items.Count)
@@ -156,6 +214,14 @@ namespace SimpVid_Gist_WPF
 
             if (expIdx >= 0 && expIdx < ExportFormatComboBox.Items.Count)
                 ExportFormatComboBox.SelectedIndex = expIdx;
+            if (modeIdx >= 0 && modeIdx < ModeComboBox.Items.Count)
+                ModeComboBox.SelectedIndex = modeIdx;
+            if (sumTargetIdx >= 0 && sumTargetIdx < SummaryTargetLangComboBox.Items.Count)
+                SummaryTargetLangComboBox.SelectedIndex = sumTargetIdx;
+            if (transTargetIdx >= 0 && transTargetIdx < TranslationTargetLangComboBox.Items.Count)
+                TranslationTargetLangComboBox.SelectedIndex = transTargetIdx;
+            if (knowTargetIdx >= 0 && knowTargetIdx < KnowledgeTargetLangComboBox.Items.Count)
+                KnowledgeTargetLangComboBox.SelectedIndex = knowTargetIdx;
             if (sumIdx >= 0 && sumIdx < SummaryLengthComboBox.Items.Count)
                 SummaryLengthComboBox.SelectedIndex = sumIdx;
 
@@ -169,10 +235,57 @@ namespace SimpVid_Gist_WPF
             ApplyLanguage();
         }
 
-        private void SummaryLengthComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        private void SummaryLengthComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             bool isCustom = (SummaryLengthComboBox.SelectedItem as SummaryLengthItem)?.WordCount == null;
             CustomLengthTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var item = ModeComboBox.SelectedItem as ComboBoxItem;
+            _currentMode = item?.Tag?.ToString() switch
+            {
+                "translation" => AiMode.Translation,
+                "knowledge" => AiMode.KnowledgeGraph,
+                _ => AiMode.Summary
+            };
+            bool zh = Localization.IsChinese;
+            SummaryPanel.Visibility = _currentMode == AiMode.Summary ? Visibility.Visible : Visibility.Collapsed;
+            TranslationPanel.Visibility = _currentMode == AiMode.Translation ? Visibility.Visible : Visibility.Collapsed;
+            KnowledgeGraphPanel.Visibility = _currentMode == AiMode.KnowledgeGraph ? Visibility.Visible : Visibility.Collapsed;
+            SummarizeButton.Content = _currentMode switch
+            {
+                AiMode.Translation => zh ? "翻译字幕" : "Translate Transcript",
+                AiMode.KnowledgeGraph => zh ? "生成知识图表" : "Generate Knowledge Graph",
+                _ => zh ? "总结字幕" : "Summarize Transcript"
+            };
+        }
+
+        private void SummaryTargetLangComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool isCustom = (SummaryTargetLangComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "custom";
+            SummaryCustomLangTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void TranslationTargetLangComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool isCustom = (TranslationTargetLangComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "custom";
+            TranslationCustomLangTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void KnowledgeTargetLangComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool isCustom = (KnowledgeTargetLangComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "custom";
+            KnowledgeCustomLangTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private string GetTargetLanguage(ComboBox comboBox, TextBox customTextBox)
+        {
+            var item = comboBox.SelectedItem as ComboBoxItem;
+            if (item?.Tag?.ToString() == "custom")
+                return customTextBox.Text.Trim();
+            return item?.Tag?.ToString() ?? "en";
         }
 
         private int GetWordCountLimit()
@@ -365,7 +478,7 @@ namespace SimpVid_Gist_WPF
             }
             if (string.IsNullOrWhiteSpace(transcript))
             {
-                MessageBox.Show(zh ? "请先提取有效的视频字幕。" : "Please fetch a valid video transcript before summarizing.", zh ? "字幕为空" : "Transcript Empty", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(zh ? "请先提取有效的字幕。" : "Please fetch a valid transcript first.", zh ? "字幕为空" : "Transcript Empty", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             if (string.IsNullOrWhiteSpace(apiUrl))
@@ -381,13 +494,45 @@ namespace SimpVid_Gist_WPF
 
             SummarizeButton.IsEnabled = false;
             ExtractButton.IsEnabled = false;
-            SummaryTextBox.Text = zh ? "正在分析字幕并生成总结..." : "Analyzing transcript & generating summary...";
 
             try
             {
-                int wordLimit = GetWordCountLimit();
-                string summaryResult = await CallAiApiAsync(apiKey, transcript, apiUrl, modelName, wordLimit);
-                SummaryTextBox.Text = summaryResult;
+                switch (_currentMode)
+                {
+                    case AiMode.Summary:
+                    {
+                        int wordLimit = GetWordCountLimit();
+                        string targetLang = GetTargetLanguage(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
+                        if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
+                        SummaryTextBox.Text = zh ? "正在分析字幕并生成总结..." : "Analyzing transcript & generating summary...";
+                        string prompt = BuildSummaryPrompt(wordLimit, targetLang);
+                        string result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
+                        SummaryTextBox.Text = result;
+                        break;
+                    }
+                    case AiMode.Translation:
+                    {
+                        string targetLang = GetTargetLanguage(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
+                        if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
+                        SummaryTextBox.Text = zh ? "正在翻译字幕..." : "Translating transcript...";
+                        string prompt = BuildTranslationPrompt(targetLang);
+                        string result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
+                        SummaryTextBox.Text = result;
+                        break;
+                    }
+                    case AiMode.KnowledgeGraph:
+                    {
+                        string targetLang = GetTargetLanguage(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
+                        if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
+                        SummaryTextBox.Text = zh ? "正在生成知识图表..." : "Generating knowledge graph...";
+                        string prompt = BuildKnowledgeGraphPrompt(targetLang);
+                        string result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
+                        _lastMermaidCode = result;
+                        SummaryTextBox.Text = result;
+                        await RenderMermaidAsync(result);
+                        break;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -400,32 +545,41 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-        private async Task<string> CallAiApiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, int wordLimit)
+        private string BuildSummaryPrompt(int wordLimit, string targetLang)
+        {
+            bool zh = Localization.IsChinese;
+            return zh
+                ? $"你是一个专业的AI总结助手。请将以下YouTube字幕总结为清晰、有条理的段落。可以使用要点。\n总结语言：{targetLang}\n\n【硬性约束】总结必须精确输出{wordLimit}个字，不得多不得少！你必须精确计数，输出字数必须严格等于{wordLimit}。如果字数不符，请调整内容直到完全匹配。三项原则：1)输出精确{wordLimit}字 2)保留核心信息 3)语言简洁精炼。\n\n直接输出总结内容，无需任何额外说明。"
+                : $"You are an expert AI summarizer. Summarize the following YouTube transcript into clear, structured paragraphs. You may use bullet points.\nOutput language: {targetLang}\n\n【STRICT CONSTRAINT】The summary must be EXACTLY {wordLimit} characters — no more, no less! You MUST count precisely and output exactly {wordLimit} characters. If the count doesn't match, adjust the content until it does. Three rules: 1) Output exactly {wordLimit} characters 2) Keep all key information 3) Be concise.\n\nOutput the summary directly without any additional notes.";
+        }
+
+        private string BuildTranslationPrompt(string targetLang)
+        {
+            bool zh = Localization.IsChinese;
+            return zh
+                ? $"你是一个专业翻译。请将以下YouTube字幕翻译成{targetLang}。要求：1)结合上下文进行精确翻译 2)语言地道自然，符合{targetLang}表达习惯 3)保持原意完整 4)保留关键术语和专有名词。\n\n直接输出翻译结果，无需任何额外说明。"
+                : $"You are a professional translator. Translate the following YouTube transcript into {targetLang}. Requirements: 1) Use context for accurate translation 2) Natural and idiomatic expression 3) Preserve the complete meaning 4) Keep key terms and proper nouns. \n\nOutput the translation directly without any additional notes.";
+        }
+
+        private string BuildKnowledgeGraphPrompt(string targetLang)
+        {
+            return $"You are an expert at creating mind maps. Analyze the following transcript and create a comprehensive mind map in Mermaid.js format. Use the 'mindmap' diagram type.\nOutput language: {targetLang}\n\nRequirements:\n1. Start with 'mindmap' as the root\n2. Capture the MAIN topic as the central root node\n3. Break down into logical subtopics, sub-subtopics, and key details\n4. Use clear, concise labels for each node\n5. Organize hierarchically like a mind map — do NOT miss any important information or detail\n6. Be accurate and precise\n7. Output language must be {targetLang}\n\nCRITICAL: Output ONLY valid Mermaid.js mindmap code. No explanations, no markdown fences, no extra text. Start directly with 'mindmap'.";
+        }
+
+        private async Task<string> CallAiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, string systemPrompt)
         {
             bool zh = Localization.IsChinese;
 
             if (!apiUrl.EndsWith("/chat/completions"))
                 apiUrl = apiUrl.TrimEnd('/') + "/chat/completions";
 
-            string systemPrompt = zh
-                ? $"你是一个专业的AI总结助手。请将以下YouTube字幕总结为清晰、有条理的段落。可以使用要点。\n\n【硬性约束】总结必须精确输出{wordLimit}个字，不得多不得少！你必须精确计数，输出字数必须严格等于{wordLimit}。如果字数不符，请调整内容直到完全匹配。三项原则：1)输出精确{wordLimit}字 2)保留核心信息 3)语言简洁精炼。\n\n直接输出总结内容，无需任何额外说明。"
-                : $"You are an expert AI summarizer. Summarize the following YouTube transcript into clear, structured paragraphs. You may use bullet points.\n\n【STRICT CONSTRAINT】The summary must be EXACTLY {wordLimit} characters — no more, no less! You MUST count precisely and output exactly {wordLimit} characters. If the count doesn't match, adjust the content until it does. Three rules: 1) Output exactly {wordLimit} characters 2) Keep all key information 3) Be concise.\n\nOutput the summary directly without any additional notes.";
-
             var requestBody = new JsonObject
             {
                 ["model"] = modelName,
                 ["messages"] = new JsonArray
                 {
-                    new JsonObject
-                    {
-                        ["role"] = "system",
-                        ["content"] = systemPrompt
-                    },
-                    new JsonObject
-                    {
-                        ["role"] = "user",
-                        ["content"] = transcriptContent
-                    }
+                    new JsonObject { ["role"] = "system", ["content"] = systemPrompt },
+                    new JsonObject { ["role"] = "user", ["content"] = transcriptContent }
                 },
                 ["temperature"] = 0.5
             };
@@ -441,9 +595,7 @@ namespace SimpVid_Gist_WPF
                 string responseString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
-                {
                     throw new Exception($"({response.StatusCode}) Details: {responseString}");
-                }
 
                 using (JsonDocument doc = JsonDocument.Parse(responseString))
                 {
@@ -454,6 +606,106 @@ namespace SimpVid_Gist_WPF
                                             .GetString();
                     return rawSummary?.Trim() ?? (zh ? "AI返回了空响应。" : "AI returned an empty response.");
                 }
+            }
+        }
+
+        private async Task RenderMermaidAsync(string mermaidCode)
+        {
+            try
+            {
+                await MermaidWebView.EnsureCoreWebView2Async(null);
+
+                string html = $@"<!DOCTYPE html>
+<html><head><meta charset=""utf-8""/>
+<script src=""https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js""></script>
+<style>
+*{{margin:0;padding:0}}
+body{{overflow:hidden;width:100vw;height:100vh;background:#fff}}
+#graph{{width:100%;min-height:100vh;padding:20px;box-sizing:border-box}}
+svg{{max-width:none!important}}
+</style>
+</head><body>
+<div id=""graph"" class=""mermaid"">
+{mermaidCode}
+</div>
+<script>
+mermaid.initialize({{startOnLoad:true,theme:'default',securityLevel:'loose'}});
+let scale=1,tx=0,ty=0;
+const g=document.getElementById('graph');
+document.addEventListener('wheel',e=>{{e.preventDefault();let d=e.deltaY>0?.9:1.1;scale*=d;scale=Math.max(.1,Math.min(5,scale));g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}});
+let drag=0,dx,dy;
+document.addEventListener('mousedown',e=>{{drag=1;dx=e.clientX-tx;dy=e.clientY-ty;}});
+document.addEventListener('mousemove',e=>{{if(drag){{tx=e.clientX-dx;ty=e.clientY-dy;g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}}}});
+document.addEventListener('mouseup',()=>drag=0);
+</script></body></html>";
+                MermaidWebView.NavigateToString(html);
+            }
+            catch
+            {
+            }
+        }
+
+        private async void ExportSvgButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_lastMermaidCode))
+            {
+                bool zh = Localization.IsChinese;
+                MessageBox.Show(zh ? "请先生成知识图表。" : "Please generate a knowledge graph first.", "", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "SVG Files (*.svg)|*.svg|All Files (*.*)|*.*",
+                DefaultExt = "svg",
+                FileName = "KnowledgeGraph_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    string svg = await MermaidWebView.CoreWebView2.ExecuteScriptAsync(
+                        "(function(){var s=document.querySelector('.mermaid svg');return s?s.outerHTML:null;})()");
+                    if (svg != "null" && svg != null)
+                    {
+                        svg = System.Text.Json.JsonSerializer.Deserialize<string>(svg) ?? "";
+                        File.WriteAllText(dialog.FileName, svg, Encoding.UTF8);
+                        bool zh = Localization.IsChinese;
+                        MessageBox.Show(zh ? "SVG已导出。" : "SVG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private async void ExportPngButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_lastMermaidCode))
+            {
+                bool zh = Localization.IsChinese;
+                MessageBox.Show(zh ? "请先生成知识图表。" : "Please generate a knowledge graph first.", "", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "PNG Files (*.png)|*.png|All Files (*.*)|*.*",
+                DefaultExt = "png",
+                FileName = "KnowledgeGraph_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    await MermaidWebView.CoreWebView2.CapturePreviewAsync(
+                        CoreWebView2CapturePreviewImageFormat.Png,
+                        dialog.FileName);
+                    bool zh = Localization.IsChinese;
+                    MessageBox.Show(zh ? "PNG已导出。" : "PNG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch { }
             }
         }
 
