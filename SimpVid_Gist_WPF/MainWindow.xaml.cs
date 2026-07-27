@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -37,6 +38,46 @@ namespace SimpVid_Gist_WPF
             ["en", "zh", "ja", "ko", "es", "fr", "de", "ru", "pt", "it"],
             ["English", "中文", "日本語", "한국어", "Español", "Français", "Deutsch", "Русский", "Português", "Italiano"]
         ];
+
+        private Rect _normalBounds;
+        private bool _isMaximized;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int left, top, right, bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int x, y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MINMAXINFO
+        {
+            public POINT ptReserved;
+            public POINT ptMaxSize;
+            public POINT ptMaxPosition;
+            public POINT ptMinTrackSize;
+            public POINT ptMaxTrackSize;
+        }
 
         private class ExportFormatItem
         {
@@ -571,29 +612,57 @@ namespace SimpVid_Gist_WPF
                         int wordLimit = GetWordCountLimit();
                         string targetLang = GetTargetLanguage(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
-                        SummaryTextBox.Text = zh ? "正在分析字幕并生成总结..." : "Analyzing transcript & generating summary...";
+                        SummaryTextBox.Text = "";
+                        SummaryShowMoreButton.Visibility = Visibility.Collapsed;
+                        _fullSummary = "";
                         string prompt = BuildSummaryPrompt(wordLimit, targetLang);
-                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
+                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt,
+                            stream: true,
+                            onChunk: chunk =>
+                            {
+                                _fullSummary += chunk;
+                                Dispatcher.Invoke(() =>
+                                {
+                                    SummaryTextBox.Text = _fullSummary;
+                                });
+                            });
                         break;
                     }
                     case AiMode.Translation:
                     {
                         string targetLang = GetTargetLanguage(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
-                        SummaryTextBox.Text = zh ? "正在翻译字幕..." : "Translating transcript...";
+                        SummaryTextBox.Text = "";
+                        SummaryShowMoreButton.Visibility = Visibility.Collapsed;
+                        _fullSummary = "";
                         string prompt = BuildTranslationPrompt(targetLang);
-                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
+                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt,
+                            stream: true,
+                            onChunk: chunk =>
+                            {
+                                _fullSummary += chunk;
+                                Dispatcher.Invoke(() =>
+                                {
+                                    SummaryTextBox.Text = _fullSummary;
+                                });
+                            });
                         break;
                     }
                     case AiMode.KnowledgeGraph:
                     {
                         string targetLang = GetTargetLanguage(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
-                        SummaryTextBox.Text = zh ? "正在生成知识图表..." : "Generating knowledge graph...";
+                        SummaryTextBox.Text = "";
+                        SummaryShowMoreButton.Visibility = Visibility.Collapsed;
+                        _fullSummary = "";
                         string prompt = BuildKnowledgeGraphPrompt(targetLang);
-                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
+                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt,
+                            stream: true,
+                            onChunk: chunk =>
+                            {
+                                _fullSummary += chunk;
+                            });
                         _lastMermaidCode = result;
-                        _fullSummary = result;
                         _isSummaryExpanded = false;
                         UpdateSummaryDisplay();
                         await RenderMermaidAsync(result);
@@ -641,7 +710,7 @@ namespace SimpVid_Gist_WPF
             return $"You are an expert at creating mind maps. Analyze the following transcript and create a comprehensive mind map in Mermaid.js format. Use the 'mindmap' diagram type.\nOutput language: {targetLang}\n\nRequirements:\n1. Start with 'mindmap' as the root\n2. Capture the MAIN topic as the central root node\n3. Break down into logical subtopics, sub-subtopics, and key details\n4. Use clear, concise labels for each node\n5. Organize hierarchically like a mind map — do NOT miss any important information or detail\n6. Be accurate and precise\n7. Output language must be {targetLang}\n\nCRITICAL: Output ONLY valid Mermaid.js mindmap code. No explanations, no markdown fences, no extra text. Start directly with 'mindmap'.";
         }
 
-        private async Task<string> CallAiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, string systemPrompt)
+        private async Task<string> CallAiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, string systemPrompt, bool stream = false, Action<string> onChunk = null)
         {
             bool zh = Localization.IsChinese;
 
@@ -659,6 +728,9 @@ namespace SimpVid_Gist_WPF
                 ["temperature"] = 0.5
             };
 
+            if (stream)
+                requestBody["stream"] = true;
+
             string jsonPayload = requestBody.ToJsonString();
 
             using (var request = new HttpRequestMessage(HttpMethod.Post, apiUrl))
@@ -666,20 +738,63 @@ namespace SimpVid_Gist_WPF
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
                 request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-                HttpResponseMessage response = await _httpClient.SendAsync(request);
+                HttpResponseMessage response = await _httpClient.SendAsync(request, stream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead);
                 string responseString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                     throw new Exception($"({response.StatusCode}) Details: {responseString}");
 
-                using (JsonDocument doc = JsonDocument.Parse(responseString))
+                if (stream)
                 {
-                    JsonElement root = doc.RootElement;
-                    string? rawSummary = root.GetProperty("choices")[0]
-                                            .GetProperty("message")
-                                            .GetProperty("content")
-                                            .GetString();
-                    return rawSummary?.Trim() ?? (zh ? "AI返回了空响应。" : "AI returned an empty response.");
+                    var fullBuilder = new StringBuilder();
+                    using var streamResponse = await response.Content.ReadAsStreamAsync();
+                    using var reader = new StreamReader(streamResponse);
+
+                    while (!reader.EndOfStream)
+                    {
+                        var line = await reader.ReadLineAsync();
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        if (line.StartsWith("data: "))
+                        {
+                            var data = line.Substring(6);
+                            if (data.Trim() == "[DONE]") break;
+
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(data);
+                                var choices = doc.RootElement.GetProperty("choices");
+                                if (choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
+                                {
+                                    var delta = choices[0].GetProperty("delta");
+                                    if (delta.TryGetProperty("content", out var contentProp))
+                                    {
+                                        string chunk = contentProp.GetString() ?? "";
+                                        fullBuilder.Append(chunk);
+                                        onChunk?.Invoke(chunk);
+                                    }
+                                }
+                            }
+                            catch { /* skip malformed chunk */ }
+                        }
+                    }
+
+                    string fullText = fullBuilder.ToString().Trim();
+                    return string.IsNullOrEmpty(fullText)
+                        ? (zh ? "AI返回了空响应。" : "AI returned an empty response.")
+                        : fullText;
+                }
+                else
+                {
+                    using (JsonDocument doc = JsonDocument.Parse(responseString))
+                    {
+                        JsonElement root = doc.RootElement;
+                        string? rawSummary = root.GetProperty("choices")[0]
+                                                .GetProperty("message")
+                                                .GetProperty("content")
+                                                .GetString();
+                        return rawSummary?.Trim() ?? (zh ? "AI返回了空响应。" : "AI returned an empty response.");
+                    }
                 }
             }
         }
@@ -887,7 +1002,55 @@ document.addEventListener('mouseup',()=>drag=0);
         {
             if (e.LeftButton == MouseButtonState.Pressed)
             {
-                DragMove();
+                if (e.ClickCount >= 2)
+                {
+                    ToggleMaximize();
+                }
+                else
+                {
+                    DragMove();
+                }
+            }
+        }
+
+        private void ToggleMaximize()
+        {
+            if (_isMaximized)
+            {
+                _isMaximized = false;
+                WindowState = WindowState.Normal;
+                Left = _normalBounds.Left;
+                Top = _normalBounds.Top;
+                Width = _normalBounds.Width;
+                Height = _normalBounds.Height;
+            }
+            else
+            {
+                _normalBounds = new Rect(Left, Top, Width, Height);
+                _isMaximized = true;
+                var workArea = SystemParameters.WorkArea;
+                Left = workArea.Left;
+                Top = workArea.Top;
+                Width = workArea.Width;
+                Height = workArea.Height;
+            }
+        }
+
+        private void Window_StateChanged(object sender, EventArgs e)
+        {
+            if (WindowState == WindowState.Maximized && !_isMaximized)
+            {
+                _normalBounds = new Rect(Left, Top, Width, Height);
+                _isMaximized = true;
+                var workArea = SystemParameters.WorkArea;
+                Left = workArea.Left;
+                Top = workArea.Top;
+                Width = workArea.Width;
+                Height = workArea.Height;
+            }
+            else if (WindowState == WindowState.Normal && _isMaximized)
+            {
+                _isMaximized = false;
             }
         }
 

@@ -4,9 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SimpVid_Gist_WPF"
-        mc:Ignorable="d" WindowStyle="None"
+        mc:Ignorable="d" WindowStyle="None" ResizeMode="CanResizeWithGrip"
         Title="SimpVid Gist"
-        Height="750" Width="450">
+        Height="750" Width="450" StateChanged="Window_StateChanged">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" GlassFrameThickness="0" ResizeBorderThickness="5" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="50"/>
