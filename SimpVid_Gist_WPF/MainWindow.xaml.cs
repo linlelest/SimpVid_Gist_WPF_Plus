@@ -62,36 +62,66 @@ namespace SimpVid_Gist_WPF
 
         public MainWindow()
         {
-            InitializeComponent();
-
-            _httpClient = new HttpClient(new SocketsHttpHandler
+            Logger.Separate();
+            Logger.Log("MainWindow constructor start");
+            try
             {
-                UseProxy = true,
-                Proxy = HttpClient.DefaultProxy,
-                DefaultProxyCredentials = CredentialCache.DefaultCredentials,
-                PooledConnectionLifetime = TimeSpan.FromMinutes(5)
-            });
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            _httpClient.Timeout = TimeSpan.FromSeconds(30);
-            _youtubeClient = new YoutubeClient(_httpClient);
+                InitializeComponent();
+                Logger.Log("InitializeComponent done");
 
-            CheckFirstRun();
-            PopulateExportFormats();
-            PopulateSummaryLengths();
-            ModeComboBox.SelectedIndex = 0;
-            SetInitialTargetLangSelections();
-            ApplyLanguage();
-            LoadFromAppData();
-            BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+                _httpClient = new HttpClient(new SocketsHttpHandler
+                {
+                    UseProxy = true,
+                    Proxy = HttpClient.DefaultProxy,
+                    DefaultProxyCredentials = CredentialCache.DefaultCredentials,
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(5)
+                });
+                _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                _httpClient.Timeout = TimeSpan.FromSeconds(30);
+                _youtubeClient = new YoutubeClient(_httpClient);
 
-            BaseUrlTextBox.TextChanged += (_, _) => AutoSaveConfig();
-            ModelTextBox.TextChanged += (_, _) => AutoSaveConfig();
-            ApiKeyTextBox.PasswordChanged += (_, _) => AutoSaveConfig();
+                CheckFirstRun();
+                Logger.Log("CheckFirstRun done");
 
-            LoadLayoutPreference();
-            ApplyLayoutMode(_currentLayout);
-            ApplyLanguage();
-            CheckLayoutHintFirstRun();
+                PopulateExportFormats();
+                PopulateSummaryLengths();
+                ModeComboBox.SelectedIndex = 0;
+                SetInitialTargetLangSelections();
+                ApplyLanguage();
+                Logger.Log("ApplyLanguage (1st) done");
+
+                LoadFromAppData();
+                BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+
+                BaseUrlTextBox.TextChanged += (_, _) => AutoSaveConfig();
+                ModelTextBox.TextChanged += (_, _) => AutoSaveConfig();
+                ApiKeyTextBox.PasswordChanged += (_, _) => AutoSaveConfig();
+
+                LoadLayoutPreference();
+                Logger.Log($"Layout preference: {_currentLayout}");
+
+                ApplyLayoutMode(_currentLayout);
+                Logger.Log("ApplyLayoutMode done");
+
+                ApplyLanguage();
+                Logger.Log("ApplyLanguage (2nd) done");
+
+                // Delay hint popup until window is fully loaded
+                Loaded += (_, _) =>
+                {
+                    Logger.Log("Window Loaded event fired");
+                    CheckLayoutHintFirstRun();
+                    Logger.Log("CheckLayoutHintFirstRun done");
+                };
+
+                Logger.Log("MainWindow constructor end");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError("MainWindow constructor exception", ex);
+                MessageBox.Show(ex.ToString(), "Startup Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                throw;
+            }
         }
 
         private void AutoSaveConfig()
@@ -1261,38 +1291,86 @@ document.addEventListener('mouseup',function(){{drag=0;}});
 
         private void ApplyLayoutMode(LayoutMode mode)
         {
-            DetachFromParent(SubtitleSectionPanel);
-            DetachFromParent(AiSectionPanel);
+            try
+            {
+                Logger.Log($"ApplyLayoutMode: mode={mode}");
 
-            if (mode == LayoutMode.Split)
-            {
-                SubtitleSectionPanel.Margin = new Thickness(16);
-                AiSectionPanel.Margin = new Thickness(16);
-                Grid.SetColumn(SubtitleSectionPanel, 0);
-                Grid.SetColumn(AiSectionPanel, 2);
-                SplitLayoutGrid.Children.Add(SubtitleSectionPanel);
-                SplitLayoutGrid.Children.Add(AiSectionPanel);
-                SplitLayoutGrid.Visibility = Visibility.Visible;
-                ScrollLayoutViewer.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                SubtitleSectionPanel.Margin = new Thickness(0);
-                AiSectionPanel.Margin = new Thickness(0);
-                ScrollSectionSubtitle.Child = SubtitleSectionPanel;
-                ScrollSectionAi.Child = AiSectionPanel;
-                ScrollLayoutViewer.Visibility = Visibility.Visible;
-                SplitLayoutGrid.Visibility = Visibility.Collapsed;
-                ScrollLayoutViewer.ScrollToTop();
-                _currentScrollSection = 0;
-            }
-            _currentLayout = mode;
-            UpdateLayoutToggleButtonVisual();
+                // WebBrowser (ActiveX host) crashes when reparented.
+                // Detach MermaidBrowser from its host Border before reparenting AiSectionPanel,
+                // then reattach after reparenting is complete.
+                Border? mermaidHost = null;
+                try
+                {
+                    if (MermaidBrowser.Parent is Border mb)
+                    {
+                        mermaidHost = mb;
+                        mb.Child = null;
+                        Logger.Log("Detached MermaidBrowser from host Border before reparent");
+                    }
+                }
+                catch (Exception ex) { Logger.LogError("MermaidBrowser detach", ex); }
 
-            // Re-render Mermaid diagram if needed (WebBrowser may lose state on reparent)
-            if (!string.IsNullOrEmpty(_lastMermaidCode) && _currentMode == AiMode.KnowledgeGraph)
+                DetachFromParent(SubtitleSectionPanel);
+                DetachFromParent(AiSectionPanel);
+                Logger.Log("Detached both panels from parents");
+
+                if (mode == LayoutMode.Split)
+                {
+                    SubtitleSectionPanel.Margin = new Thickness(16);
+                    AiSectionPanel.Margin = new Thickness(16);
+                    Grid.SetColumn(SubtitleSectionPanel, 0);
+                    Grid.SetColumn(AiSectionPanel, 2);
+                    SplitLayoutGrid.Children.Add(SubtitleSectionPanel);
+                    SplitLayoutGrid.Children.Add(AiSectionPanel);
+                    SplitLayoutGrid.Visibility = Visibility.Visible;
+                    ScrollLayoutViewer.Visibility = Visibility.Collapsed;
+                    Logger.Log("Split layout applied");
+                }
+                else
+                {
+                    SubtitleSectionPanel.Margin = new Thickness(0);
+                    AiSectionPanel.Margin = new Thickness(0);
+                    ScrollSectionSubtitle.Child = SubtitleSectionPanel;
+                    ScrollSectionAi.Child = AiSectionPanel;
+                    ScrollLayoutViewer.Visibility = Visibility.Visible;
+                    SplitLayoutGrid.Visibility = Visibility.Collapsed;
+                    ScrollLayoutViewer.ScrollToTop();
+                    _currentScrollSection = 0;
+                    Logger.Log("Scroll layout applied");
+                }
+
+                // Reattach WebBrowser
+                if (mermaidHost != null)
+                {
+                    try
+                    {
+                        mermaidHost.Child = MermaidBrowser;
+                        Logger.Log("Reattached MermaidBrowser to host Border");
+                    }
+                    catch (Exception ex) { Logger.LogError("MermaidBrowser reattach", ex); }
+                }
+
+                _currentLayout = mode;
+                UpdateLayoutToggleButtonVisual();
+
+                // Re-render Mermaid diagram if needed (WebBrowser may have lost state)
+                if (!string.IsNullOrEmpty(_lastMermaidCode) && _currentMode == AiMode.KnowledgeGraph)
+                {
+                    Logger.Log("Re-rendering Mermaid diagram");
+                    _ = RenderMermaidAsync(_lastMermaidCode);
+                }
+            }
+            catch (Exception ex)
             {
-                _ = RenderMermaidAsync(_lastMermaidCode);
+                Logger.LogError("ApplyLayoutMode exception", ex);
+                // Fallback: ensure at least split layout is visible so app doesn't show blank
+                try
+                {
+                    SplitLayoutGrid.Visibility = Visibility.Visible;
+                    ScrollLayoutViewer.Visibility = Visibility.Collapsed;
+                    _currentLayout = LayoutMode.Split;
+                }
+                catch { }
             }
         }
 
