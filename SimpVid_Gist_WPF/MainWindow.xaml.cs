@@ -1,6 +1,4 @@
 ﻿using Microsoft.Win32;
-using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.Wpf;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -691,8 +689,6 @@ namespace SimpVid_Gist_WPF
 
         private async Task RenderMermaidAsync(string mermaidCode)
         {
-            bool zh = Localization.IsChinese;
-
             string code = mermaidCode.Trim();
             if (code.StartsWith("```"))
             {
@@ -702,8 +698,6 @@ namespace SimpVid_Gist_WPF
                 if (end >= 0) code = code[..end];
                 code = code.Trim();
             }
-
-            await MermaidWebView.EnsureCoreWebView2Async(null);
 
             string html = $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
@@ -729,16 +723,28 @@ document.addEventListener('mousedown',e=>{{drag=1;dx=e.clientX-tx;dy=e.clientY-t
 document.addEventListener('mousemove',e=>{{if(drag){{tx=e.clientX-dx;ty=e.clientY-dy;g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}}}});
 document.addEventListener('mouseup',()=>drag=0);
 </script></body></html>";
-            MermaidWebView.NavigateToString(html);
+
+            string tempFile = Path.Combine(Path.GetTempPath(), "mermaid_preview.html");
+            await File.WriteAllTextAsync(tempFile, html, Encoding.UTF8);
+            MermaidBrowser.Navigate(tempFile);
         }
 
         private async void ExportSvgButton_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(_lastMermaidCode))
+            bool zh = Localization.IsChinese;
+            string code = _lastMermaidCode.Trim();
+            if (string.IsNullOrEmpty(code))
             {
-                bool zh = Localization.IsChinese;
                 MessageBox.Show(zh ? "请先生成知识图表。" : "Please generate a knowledge graph first.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
+            }
+            if (code.StartsWith("```"))
+            {
+                int start = code.IndexOf('\n');
+                if (start > 0) code = code[(start + 1)..];
+                int end = code.LastIndexOf("```");
+                if (end >= 0) code = code[..end];
+                code = code.Trim();
             }
 
             var dialog = new SaveFileDialog
@@ -752,15 +758,12 @@ document.addEventListener('mouseup',()=>drag=0);
             {
                 try
                 {
-                    string? svg = await MermaidWebView.CoreWebView2.ExecuteScriptAsync(
-                        "(function(){var s=document.querySelector('.mermaid svg');return s?s.outerHTML:null;})()");
-                    if (!string.IsNullOrEmpty(svg) && svg != "null")
-                    {
-                        string decoded = System.Text.Json.JsonSerializer.Deserialize<string>(svg) ?? "";
-                        File.WriteAllText(dialog.FileName, decoded, Encoding.UTF8);
-                        bool zh = Localization.IsChinese;
-                        MessageBox.Show(zh ? "SVG已导出。" : "SVG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
+                    string encoded = Uri.EscapeDataString(code);
+                    string url = $"https://mermaid.ink/svg/{encoded}";
+                    byte[] svgData = await _httpClient.GetByteArrayAsync(url);
+                    await File.WriteAllBytesAsync(dialog.FileName, svgData);
+                    bool zh = Localization.IsChinese;
+                    MessageBox.Show(zh ? "SVG已导出。" : "SVG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
@@ -772,11 +775,20 @@ document.addEventListener('mouseup',()=>drag=0);
 
         private async void ExportPngButton_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(_lastMermaidCode))
+            bool zh = Localization.IsChinese;
+            string code = _lastMermaidCode.Trim();
+            if (string.IsNullOrEmpty(code))
             {
-                bool zh = Localization.IsChinese;
                 MessageBox.Show(zh ? "请先生成知识图表。" : "Please generate a knowledge graph first.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
+            }
+            if (code.StartsWith("```"))
+            {
+                int start = code.IndexOf('\n');
+                if (start > 0) code = code[(start + 1)..];
+                int end = code.LastIndexOf("```");
+                if (end >= 0) code = code[..end];
+                code = code.Trim();
             }
 
             var dialog = new SaveFileDialog
@@ -790,12 +802,10 @@ document.addEventListener('mouseup',()=>drag=0);
             {
                 try
                 {
-                    using (var stream = File.OpenWrite(dialog.FileName))
-                    {
-                        await MermaidWebView.CoreWebView2.CapturePreviewAsync(
-                            CoreWebView2CapturePreviewImageFormat.Png,
-                            stream);
-                    }
+                    string encoded = Uri.EscapeDataString(code);
+                    string url = $"https://mermaid.ink/img/{encoded}";
+                    byte[] pngData = await _httpClient.GetByteArrayAsync(url);
+                    await File.WriteAllBytesAsync(dialog.FileName, pngData);
                     bool zh = Localization.IsChinese;
                     MessageBox.Show(zh ? "PNG已导出。" : "PNG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 }

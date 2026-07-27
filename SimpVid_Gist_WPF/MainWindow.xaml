@@ -4,7 +4,6 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SimpVid_Gist_WPF"
-        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d" WindowStyle="None"
         Title="SimpVid Gist"
         Height="750" Width="450">
@@ -150,7 +149,7 @@
                         <TextBox x:Name="KnowledgeCustomLangTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
                         <TextBlock x:Name="KnowledgePreviewLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Preview</TextBlock>
                         <Border BorderBrush="Gray" BorderThickness="1" Height="300" Margin="0,0,0,5">
-                            <wv2:WebView2 x:Name="MermaidWebView"/>
+                            <WebBrowser x:Name="MermaidBrowser"/>
                         </Border>
                         <WrapPanel HorizontalAlignment="Center" Margin="0,0,0,10">
                             <Button x:Name="ExportSvgButton" Content="Export SVG" Margin="0,0,5,0" Click="ExportSvgButton_Click"/>
