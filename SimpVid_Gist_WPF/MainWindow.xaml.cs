@@ -762,12 +762,10 @@ document.addEventListener('mouseup',()=>drag=0);
                     string url = $"https://mermaid.ink/svg/{encoded}";
                     byte[] svgData = await _httpClient.GetByteArrayAsync(url);
                     await File.WriteAllBytesAsync(dialog.FileName, svgData);
-                    bool zh = Localization.IsChinese;
                     MessageBox.Show(zh ? "SVG已导出。" : "SVG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
-                    bool zh = Localization.IsChinese;
                     MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
@@ -806,12 +804,10 @@ document.addEventListener('mouseup',()=>drag=0);
                     string url = $"https://mermaid.ink/img/{encoded}";
                     byte[] pngData = await _httpClient.GetByteArrayAsync(url);
                     await File.WriteAllBytesAsync(dialog.FileName, pngData);
-                    bool zh = Localization.IsChinese;
                     MessageBox.Show(zh ? "PNG已导出。" : "PNG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
-                    bool zh = Localization.IsChinese;
                     MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
