@@ -399,40 +399,86 @@ namespace SimpVid_Gist_WPF
             TranscriptTextBox.Text = zh ? "正在获取字幕..." : "Fetching transcript tracks...";
             try
             {
-                var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(videoInput);
-
                 string targetLangCode = (LanguageCodeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
+                bool usedFallback = false;
+                List<ClosedCaption> captions = null;
 
-                var trackInfo = TryGetTrackByCode(trackManifest, targetLangCode);
-
-                if (trackInfo == null && targetLangCode == "zh")
-                    trackInfo = trackManifest.Tracks.FirstOrDefault();
-
-                if (trackInfo == null)
+                try
                 {
-                    bool autoRetry = ShowRetryDialog(targetLangCode);
-                    if (autoRetry)
+                    var trackManifest = await _youtubeClient.Videos.ClosedCaptions.GetManifestAsync(videoInput);
+
+                    var trackInfo = TryGetTrackByCode(trackManifest, targetLangCode);
+
+                    if (trackInfo == null && targetLangCode == "zh")
+                        trackInfo = trackManifest.Tracks.FirstOrDefault();
+
+                    if (trackInfo == null)
                     {
-                        foreach (var code in AllLangCodes)
+                        bool autoRetry = ShowRetryDialog(targetLangCode);
+                        if (autoRetry)
                         {
-                            if (code == targetLangCode) continue;
-                            if (targetLangCode == "zh" && (code == "zh-Hans" || code == "zh-Hant")) continue;
+                            foreach (var code in AllLangCodes)
+                            {
+                                if (code == targetLangCode) continue;
+                                if (targetLangCode == "zh" && (code == "zh-Hans" || code == "zh-Hant")) continue;
 
-                            trackInfo = TryGetTrackByCode(trackManifest, code);
-                            if (trackInfo != null) break;
+                                trackInfo = TryGetTrackByCode(trackManifest, code);
+                                if (trackInfo != null) break;
+                            }
+
+                            trackInfo ??= trackManifest.Tracks.FirstOrDefault();
                         }
+                    }
 
-                        trackInfo ??= trackManifest.Tracks.FirstOrDefault();
+                    if (trackInfo != null)
+                    {
+                        TranscriptTextBox.Text = zh ? "正在下载字幕..." : "Downloading transcript...";
+
+                        var closedCaptionTrack = await _youtubeClient.Videos.ClosedCaptions.GetAsync(trackInfo);
+                        captions = closedCaptionTrack.Captions.ToList();
                     }
                 }
-
-                if (trackInfo != null)
+                catch (Exception ex) when (ex.GetType().Name.Contains("VideoUnavailable") || ex.GetType().Name.Contains("ClosedCaptionsUnavailable") || ex.Message.Contains("not available"))
                 {
-                    TranscriptTextBox.Text = zh ? "正在下载字幕..." : "Downloading transcript...";
+                    TranscriptTextBox.Text = zh ? "主接口失败，正在尝试备用方案..." : "Primary API failed, trying fallback...";
 
-                    var closedCaptionTrack = await _youtubeClient.Videos.ClosedCaptions.GetAsync(trackInfo);
-                    _captions = closedCaptionTrack.Captions.ToList();
+                    // Try youtubetranscript.com first
+                    captions = await GetTranscriptFallbackAsync(videoInput, targetLangCode);
 
+                    // If that also fails, try direct connection (no proxy) as last resort
+                    if (captions == null || captions.Count == 0)
+                    {
+                        TranscriptTextBox.Text = zh ? "正在尝试直连..." : "Trying direct connection...";
+                        using var noProxyClient = new HttpClient(new SocketsHttpHandler
+                        {
+                            UseProxy = false,
+                            PooledConnectionLifetime = TimeSpan.FromMinutes(1)
+                        });
+                        noProxyClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+                        noProxyClient.Timeout = TimeSpan.FromSeconds(15);
+                        try
+                        {
+                            var fallbackJson = await noProxyClient.GetStringAsync($"https://youtubetranscript.com/api?vid={ExtractYouTubeVideoId(videoInput)}&lang={targetLangCode}");
+                            using var doc = JsonDocument.Parse(fallbackJson);
+                            var fbCaptions = new List<ClosedCaption>();
+                            foreach (var item in doc.RootElement.EnumerateArray())
+                            {
+                                string text = item.GetProperty("text").GetString() ?? "";
+                                double start = item.GetProperty("start").GetDouble();
+                                double duration = item.GetProperty("duration").GetDouble();
+                                fbCaptions.Add(new ClosedCaption(text, text, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(duration), Array.Empty<ClosedCaptionPart>()));
+                            }
+                            captions = fbCaptions;
+                        }
+                        catch { /* final fallback failed */ }
+                    }
+
+                    usedFallback = true;
+                }
+
+                if (captions != null && captions.Count > 0)
+                {
+                    _captions = captions;
                     var transcriptBuilder = new StringBuilder();
                     foreach (var caption in _captions)
                     {
@@ -444,6 +490,14 @@ namespace SimpVid_Gist_WPF
 
                     DisplayTranscript(transcriptBuilder.ToString());
                     SummarizeButton.IsEnabled = true;
+
+                    if (usedFallback)
+                    {
+                        string fbMsg = zh ? "（已使用备用方案获取字幕）" : "(Transcript fetched via fallback)";
+                        TranscriptTextBox.Text = transcriptBuilder.Length > 0
+                            ? transcriptBuilder.ToString() + "\n" + fbMsg
+                            : fbMsg;
+                    }
                 }
                 else
                 {
@@ -1079,6 +1133,81 @@ document.addEventListener('mouseup',()=>drag=0);
         private void BaseUrlTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private static string ExtractYouTubeVideoId(string input)
+        {
+            input = input.Trim();
+            if (string.IsNullOrWhiteSpace(input)) return null;
+
+            // Handle various URL formats
+            if (input.Contains("youtube.com/watch") && input.Contains("v="))
+            {
+                int idx = input.IndexOf("v=") + 2;
+                int end = input.IndexOf('&', idx);
+                if (end < 0) end = input.Length;
+                return input.Substring(idx, end - idx);
+            }
+
+            if (input.Contains("youtu.be/"))
+            {
+                int idx = input.IndexOf("youtu.be/") + 9;
+                int end = input.IndexOf('?', idx);
+                if (end < 0) end = input.Length;
+                string id = input.Substring(idx, end - idx);
+                int slash = id.IndexOf('/');
+                if (slash >= 0) id = id.Substring(0, slash);
+                return id;
+            }
+
+            if (input.Contains("youtube.com/shorts/"))
+            {
+                int idx = input.IndexOf("shorts/") + 7;
+                int end = input.IndexOf('?', idx);
+                if (end < 0) end = input.Length;
+                string id = input.Substring(idx, end - idx);
+                int slash = id.IndexOf('/');
+                if (slash >= 0) id = id.Substring(0, slash);
+                return id;
+            }
+
+            // Assume it's already a bare video ID
+            return input;
+        }
+
+        private async Task<List<ClosedCaption>> GetTranscriptFallbackAsync(string videoInput, string langCode)
+        {
+            bool zh = Localization.IsChinese;
+            var result = new List<ClosedCaption>();
+            string videoId = ExtractYouTubeVideoId(videoInput);
+
+            if (string.IsNullOrWhiteSpace(videoId) || videoId.Length < 10)
+                return result;
+
+            string fallbackUrl = $"https://youtubetranscript.com/api?vid={videoId}&lang={langCode}";
+            TranscriptTextBox.Text = zh ? "正在通过备用接口获取字幕..." : "Fetching transcript via fallback API...";
+
+            var response = await _httpClient.GetAsync(fallbackUrl);
+            response.EnsureSuccessStatusCode();
+
+            string json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                string text = item.GetProperty("text").GetString() ?? "";
+                double start = item.GetProperty("start").GetDouble();
+                double duration = item.GetProperty("duration").GetDouble();
+
+                result.Add(new ClosedCaption(
+                    text,
+                    text,
+                    TimeSpan.FromSeconds(start),
+                    TimeSpan.FromSeconds(duration),
+                    Array.Empty<ClosedCaptionPart>()
+                ));
+            }
+
+            return result;
         }
     }
 }
