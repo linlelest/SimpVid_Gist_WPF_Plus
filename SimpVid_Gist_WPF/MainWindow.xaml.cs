@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.IO;
@@ -33,11 +33,6 @@ namespace SimpVid_Gist_WPF
         private enum AiMode { Summary, Translation, KnowledgeGraph }
         private AiMode _currentMode = AiMode.Summary;
         private string _lastMermaidCode = "";
-
-        private static readonly string[][] CommonTargetLangs = [
-            ["en", "zh", "ja", "ko", "es", "fr", "de", "ru", "pt", "it"],
-            ["English", "中文", "日本語", "한국어", "Español", "Français", "Deutsch", "Русский", "Português", "Italiano"]
-        ];
 
         private Rect _normalBounds;
         private bool _isMaximized;
@@ -107,13 +102,10 @@ namespace SimpVid_Gist_WPF
             _youtubeClient = new YoutubeClient(_httpClient);
 
             CheckFirstRun();
-            PopulateLanguageCodes();
             PopulateExportFormats();
-            PopulateModes();
-            PopulateTargetLanguages(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
-            PopulateTargetLanguages(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
-            PopulateTargetLanguages(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
             PopulateSummaryLengths();
+            ModeComboBox.SelectedIndex = 0;
+            SetInitialTargetLangSelections();
             ApplyLanguage();
             LoadFromAppData();
             BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
@@ -142,35 +134,23 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-        private void PopulateLanguageCodes()
-        {
-            bool zh = Localization.IsChinese;
-            LanguageCodeComboBox.Items.Clear();
-            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "英语 (en)" : "English (en)", Tag = "en" });
-            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "中文 (zh)" : "Chinese (zh)", Tag = "zh" });
-            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "日语 (ja)" : "Japanese (ja)", Tag = "ja" });
-            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "韩语 (ko)" : "Korean (ko)", Tag = "ko" });
-            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "西班牙语 (es)" : "Spanish (es)", Tag = "es" });
-            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "法语 (fr)" : "French (fr)", Tag = "fr" });
-            LanguageCodeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "俄语 (ru)" : "Russian (ru)", Tag = "ru" });
-            LanguageCodeComboBox.SelectedIndex = 0;
-        }
-
         private void PopulateExportFormats()
         {
             bool zh = Localization.IsChinese;
+            int prevIdx = ExportFormatComboBox.SelectedIndex;
             ExportFormatComboBox.ItemsSource = new List<ExportFormatItem>
             {
                 new() { Display = zh ? "TXT（纯文本）" : "TXT (text only)", Value = "txt" },
                 new() { Display = zh ? "SRT（带时间轴）" : "SRT (with timestamps)", Value = "srt" },
             };
             ExportFormatComboBox.DisplayMemberPath = "Display";
-            ExportFormatComboBox.SelectedIndex = 0;
+            ExportFormatComboBox.SelectedIndex = prevIdx >= 0 ? prevIdx : 0;
         }
 
         private void PopulateSummaryLengths()
         {
             bool zh = Localization.IsChinese;
+            int prevIdx = SummaryLengthComboBox.SelectedIndex;
             SummaryLengthComboBox.ItemsSource = new List<SummaryLengthItem>
             {
                 new() { Display = zh ? "极简（100字）" : "Minimal (100 chars)", WordCount = 100 },
@@ -180,30 +160,41 @@ namespace SimpVid_Gist_WPF
                 new() { Display = zh ? "自定义" : "Custom", WordCount = null },
             };
             SummaryLengthComboBox.DisplayMemberPath = "Display";
-            SummaryLengthComboBox.SelectedIndex = 2;
+            SummaryLengthComboBox.SelectedIndex = prevIdx >= 0 ? prevIdx : 2;
         }
 
-        private void PopulateModes()
+        private void UpdateLanguageCodeItems(bool zh)
         {
-            bool zh = Localization.IsChinese;
-            ModeComboBox.Items.Clear();
-            ModeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "AI总结" : "AI Summary", Tag = "summary" });
-            ModeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "AI翻译" : "AI Translation", Tag = "translation" });
-            ModeComboBox.Items.Add(new ComboBoxItem { Content = zh ? "AI知识图表" : "AI Knowledge Graph", Tag = "knowledge" });
-            ModeComboBox.SelectedIndex = 0;
+            LangCodeEn.Content = zh ? "英语 (en)" : "English (en)";
+            LangCodeZh.Content = zh ? "中文 (zh)" : "Chinese (zh)";
+            LangCodeJa.Content = zh ? "日语 (ja)" : "Japanese (ja)";
+            LangCodeKo.Content = zh ? "韩语 (ko)" : "Korean (ko)";
+            LangCodeEs.Content = zh ? "西班牙语 (es)" : "Spanish (es)";
+            LangCodeFr.Content = zh ? "法语 (fr)" : "French (fr)";
+            LangCodeRu.Content = zh ? "俄语 (ru)" : "Russian (ru)";
         }
 
-        private void PopulateTargetLanguages(ComboBox comboBox, TextBox customTextBox)
+        private void UpdateModeItems(bool zh)
         {
-            bool zh = Localization.IsChinese;
-            comboBox.Items.Clear();
-            string[] codes = CommonTargetLangs[0];
-            string[] names = CommonTargetLangs[1];
-            for (int i = 0; i < codes.Length; i++)
-                comboBox.Items.Add(new ComboBoxItem { Content = $"{names[i]} ({codes[i]})", Tag = codes[i] });
-            comboBox.Items.Add(new ComboBoxItem { Content = zh ? "自定义" : "Custom", Tag = "custom" });
-            comboBox.SelectedIndex = Localization.IsChinese ? 1 : 0;
-            customTextBox.Visibility = Visibility.Collapsed;
+            ModeItemSummary.Content = zh ? "AI总结" : "AI Summary";
+            ModeItemTranslation.Content = zh ? "AI翻译" : "AI Translation";
+            ModeItemKnowledge.Content = zh ? "AI知识图表" : "AI Knowledge Graph";
+        }
+
+        private void UpdateTargetLangCustomItems(bool zh)
+        {
+            string custom = zh ? "自定义" : "Custom";
+            SummaryTargetCustom.Content = custom;
+            TranslationTargetCustom.Content = custom;
+            KnowledgeTargetCustom.Content = custom;
+        }
+
+        private void SetInitialTargetLangSelections()
+        {
+            int idx = Localization.IsChinese ? 1 : 0;
+            SummaryTargetLangComboBox.SelectedIndex = idx;
+            TranslationTargetLangComboBox.SelectedIndex = idx;
+            KnowledgeTargetLangComboBox.SelectedIndex = idx;
         }
 
         private void ApplyLanguage()
@@ -257,12 +248,10 @@ namespace SimpVid_Gist_WPF
             int transTargetIdx = TranslationTargetLangComboBox.SelectedIndex;
             int knowTargetIdx = KnowledgeTargetLangComboBox.SelectedIndex;
 
-            PopulateLanguageCodes();
+            UpdateLanguageCodeItems(zh);
             PopulateExportFormats();
-            PopulateModes();
-            PopulateTargetLanguages(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
-            PopulateTargetLanguages(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
-            PopulateTargetLanguages(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
+            UpdateModeItems(zh);
+            UpdateTargetLangCustomItems(zh);
             PopulateSummaryLengths();
 
             if (langIdx >= 0 && langIdx < LanguageCodeComboBox.Items.Count)
@@ -508,7 +497,7 @@ namespace SimpVid_Gist_WPF
                                 string text = item.GetProperty("text").GetString() ?? "";
                                 double start = item.GetProperty("start").GetDouble();
                                 double duration = item.GetProperty("duration").GetDouble();
-                                fbCaptions.Add(new ClosedCaption(text, text, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(duration), Array.Empty<ClosedCaptionPart>()));
+                                fbCaptions.Add(new ClosedCaption(text, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(duration), Array.Empty<ClosedCaptionPart>()));
                             }
                             captions = fbCaptions;
                         }
@@ -1068,51 +1057,9 @@ document.addEventListener('mouseup',()=>drag=0);
         private bool ShowRetryDialog(string langCode)
         {
             bool zh = Localization.IsChinese;
-
-            var dialog = new Window
-            {
-                Title = zh ? "字幕获取提示" : "Transcript Notice",
-                Width = 420,
-                Height = 200,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner = this,
-                ResizeMode = ResizeMode.NoResize,
-                WindowStyle = WindowStyle.ToolWindow,
-                ShowInTaskbar = false
-            };
-
-            var panel = new StackPanel { Margin = new Thickness(16) };
-
-            panel.Children.Add(new TextBlock
-            {
-                Text = zh
-                    ? $"未找到语言 \"{langCode}\" 的字幕。请选择操作："
-                    : $"No transcript found for language \"{langCode}\". Choose an option:",
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 0, 0, 16)
-            });
-
-            bool result = false;
-            var autoBtn = new Button
-            {
-                Content = zh ? "自动重试（尝试所有可用语言，较慢）" : "Auto-retry (try all available languages, slower)",
-                Height = 32,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            autoBtn.Click += (_, _) => { result = true; dialog.Close(); };
-            panel.Children.Add(autoBtn);
-
-            var manualBtn = new Button
-            {
-                Content = zh ? "手动重试（返回并重新选择语言）" : "Manual retry (go back and change language)",
-                Height = 32
-            };
-            manualBtn.Click += (_, _) => { result = false; dialog.Close(); };
-            panel.Children.Add(manualBtn);
-
-            dialog.Content = panel;
+            var dialog = new RetryDialog(langCode, zh) { Owner = this };
             dialog.ShowDialog();
-            return result;
+            return dialog.IsAutoRetry;
         }
 
         private void CheckFirstRun()
@@ -1128,50 +1075,9 @@ document.addEventListener('mouseup',()=>drag=0);
                 return;
             }
 
-            var dialog = new Window
-            {
-                Title = "Select Language / 选择语言",
-                Width = 350,
-                Height = 180,
-                WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                ResizeMode = ResizeMode.NoResize,
-                WindowStyle = WindowStyle.ToolWindow,
-                ShowInTaskbar = false
-            };
-
-            var panel = new StackPanel { Margin = new Thickness(16) };
-
-            panel.Children.Add(new TextBlock
-            {
-                Text = "Please select your language / 请选择语言",
-                TextAlignment = TextAlignment.Center,
-                FontSize = 16,
-                Margin = new Thickness(0, 0, 0, 20)
-            });
-
-            string chosenLang = "en";
-
-            var enBtn = new Button
-            {
-                Content = "English",
-                Height = 36,
-                Margin = new Thickness(0, 0, 0, 8),
-                FontSize = 14
-            };
-            enBtn.Click += (_, _) => { chosenLang = "en"; dialog.Close(); };
-            panel.Children.Add(enBtn);
-
-            var zhBtn = new Button
-            {
-                Content = "中文",
-                Height = 36,
-                FontSize = 14
-            };
-            zhBtn.Click += (_, _) => { chosenLang = "zh"; dialog.Close(); };
-            panel.Children.Add(zhBtn);
-
-            dialog.Content = panel;
+            var dialog = new LanguagePickerDialog();
             dialog.ShowDialog();
+            string chosenLang = dialog.SelectedLanguage;
 
             Localization.IsChinese = chosenLang == "zh";
 
@@ -1363,7 +1269,6 @@ document.addEventListener('mouseup',()=>drag=0);
                 double duration = item.GetProperty("duration").GetDouble();
 
                 result.Add(new ClosedCaption(
-                    text,
                     text,
                     TimeSpan.FromSeconds(start),
                     TimeSpan.FromSeconds(duration),

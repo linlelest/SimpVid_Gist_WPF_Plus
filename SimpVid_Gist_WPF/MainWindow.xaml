@@ -1,4 +1,4 @@
-﻿<Window x:Class="SimpVid_Gist_WPF.MainWindow"
+<Window x:Class="SimpVid_Gist_WPF.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -95,7 +95,15 @@
                 <TextBlock x:Name="UrlLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Video URL or ID</TextBlock>
                 <TextBox Name="UrlTextBox"/>
                 <TextBlock x:Name="SubtitleLangLabel" Margin="0,15,0,0" FontWeight="SemiBold">Subtitle Language</TextBlock>
-                <ComboBox x:Name="LanguageCodeComboBox" SelectedIndex="0" Margin="0,10,0,0"/>
+                <ComboBox x:Name="LanguageCodeComboBox" SelectedIndex="0" Margin="0,10,0,0">
+                    <ComboBoxItem x:Name="LangCodeEn" Content="English (en)" Tag="en"/>
+                    <ComboBoxItem x:Name="LangCodeZh" Content="Chinese (zh)" Tag="zh"/>
+                    <ComboBoxItem x:Name="LangCodeJa" Content="Japanese (ja)" Tag="ja"/>
+                    <ComboBoxItem x:Name="LangCodeKo" Content="Korean (ko)" Tag="ko"/>
+                    <ComboBoxItem x:Name="LangCodeEs" Content="Spanish (es)" Tag="es"/>
+                    <ComboBoxItem x:Name="LangCodeFr" Content="French (fr)" Tag="fr"/>
+                    <ComboBoxItem x:Name="LangCodeRu" Content="Russian (ru)" Tag="ru"/>
+                </ComboBox>
 
                 <Button Background="SkyBlue" x:Name="ExtractButton" Margin="0,10,0,10" Click="ExtractButton_Click" HorizontalAlignment="Center">
                     Extract Transcript
@@ -129,11 +137,27 @@
                     <Button x:Name="SaveButton" Margin="0,10,0,0" HorizontalAlignment="Center" Click="SaveButton_Click">Save AI Base URL and Model Name</Button>
 
                     <TextBlock x:Name="ModeLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Mode</TextBlock>
-                    <ComboBox x:Name="ModeComboBox" SelectionChanged="ModeComboBox_SelectionChanged"/>
+                    <ComboBox x:Name="ModeComboBox" SelectionChanged="ModeComboBox_SelectionChanged">
+                        <ComboBoxItem x:Name="ModeItemSummary" Content="AI Summary" Tag="summary"/>
+                        <ComboBoxItem x:Name="ModeItemTranslation" Content="AI Translation" Tag="translation"/>
+                        <ComboBoxItem x:Name="ModeItemKnowledge" Content="AI Knowledge Graph" Tag="knowledge"/>
+                    </ComboBox>
 
                     <StackPanel x:Name="SummaryPanel">
                         <TextBlock x:Name="SummaryTargetLangLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Target Summary Language</TextBlock>
-                        <ComboBox x:Name="SummaryTargetLangComboBox" SelectionChanged="SummaryTargetLangComboBox_SelectionChanged"/>
+                        <ComboBox x:Name="SummaryTargetLangComboBox" SelectionChanged="SummaryTargetLangComboBox_SelectionChanged">
+                            <ComboBoxItem Content="English (en)" Tag="en"/>
+                            <ComboBoxItem Content="中文 (zh)" Tag="zh"/>
+                            <ComboBoxItem Content="日本語 (ja)" Tag="ja"/>
+                            <ComboBoxItem Content="한국어 (ko)" Tag="ko"/>
+                            <ComboBoxItem Content="Español (es)" Tag="es"/>
+                            <ComboBoxItem Content="Français (fr)" Tag="fr"/>
+                            <ComboBoxItem Content="Deutsch (de)" Tag="de"/>
+                            <ComboBoxItem Content="Русский (ru)" Tag="ru"/>
+                            <ComboBoxItem Content="Português (pt)" Tag="pt"/>
+                            <ComboBoxItem Content="Italiano (it)" Tag="it"/>
+                            <ComboBoxItem x:Name="SummaryTargetCustom" Content="Custom" Tag="custom"/>
+                        </ComboBox>
                         <TextBox x:Name="SummaryCustomLangTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
                         <TextBlock x:Name="SummaryLengthLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Summary Length</TextBlock>
                         <ComboBox x:Name="SummaryLengthComboBox" SelectionChanged="SummaryLengthComboBox_SelectionChanged"/>
@@ -142,13 +166,37 @@
 
                     <StackPanel x:Name="TranslationPanel" Visibility="Collapsed">
                         <TextBlock x:Name="TranslationTargetLangLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Target Translation Language</TextBlock>
-                        <ComboBox x:Name="TranslationTargetLangComboBox" SelectionChanged="TranslationTargetLangComboBox_SelectionChanged"/>
+                        <ComboBox x:Name="TranslationTargetLangComboBox" SelectionChanged="TranslationTargetLangComboBox_SelectionChanged">
+                            <ComboBoxItem Content="English (en)" Tag="en"/>
+                            <ComboBoxItem Content="中文 (zh)" Tag="zh"/>
+                            <ComboBoxItem Content="日本語 (ja)" Tag="ja"/>
+                            <ComboBoxItem Content="한국어 (ko)" Tag="ko"/>
+                            <ComboBoxItem Content="Español (es)" Tag="es"/>
+                            <ComboBoxItem Content="Français (fr)" Tag="fr"/>
+                            <ComboBoxItem Content="Deutsch (de)" Tag="de"/>
+                            <ComboBoxItem Content="Русский (ru)" Tag="ru"/>
+                            <ComboBoxItem Content="Português (pt)" Tag="pt"/>
+                            <ComboBoxItem Content="Italiano (it)" Tag="it"/>
+                            <ComboBoxItem x:Name="TranslationTargetCustom" Content="Custom" Tag="custom"/>
+                        </ComboBox>
                         <TextBox x:Name="TranslationCustomLangTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
                     </StackPanel>
 
                     <StackPanel x:Name="KnowledgeGraphPanel" Visibility="Collapsed">
                         <TextBlock x:Name="KnowledgeTargetLangLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Target Language</TextBlock>
-                        <ComboBox x:Name="KnowledgeTargetLangComboBox" SelectionChanged="KnowledgeTargetLangComboBox_SelectionChanged"/>
+                        <ComboBox x:Name="KnowledgeTargetLangComboBox" SelectionChanged="KnowledgeTargetLangComboBox_SelectionChanged">
+                            <ComboBoxItem Content="English (en)" Tag="en"/>
+                            <ComboBoxItem Content="中文 (zh)" Tag="zh"/>
+                            <ComboBoxItem Content="日本語 (ja)" Tag="ja"/>
+                            <ComboBoxItem Content="한국어 (ko)" Tag="ko"/>
+                            <ComboBoxItem Content="Español (es)" Tag="es"/>
+                            <ComboBoxItem Content="Français (fr)" Tag="fr"/>
+                            <ComboBoxItem Content="Deutsch (de)" Tag="de"/>
+                            <ComboBoxItem Content="Русский (ru)" Tag="ru"/>
+                            <ComboBoxItem Content="Português (pt)" Tag="pt"/>
+                            <ComboBoxItem Content="Italiano (it)" Tag="it"/>
+                            <ComboBoxItem x:Name="KnowledgeTargetCustom" Content="Custom" Tag="custom"/>
+                        </ComboBox>
                         <TextBox x:Name="KnowledgeCustomLangTextBox" Margin="0,5,0,0" Visibility="Collapsed"/>
                         <TextBlock x:Name="KnowledgePreviewLabel" Margin="0,10,0,5" TextWrapping="Wrap" FontWeight="SemiBold">Preview</TextBlock>
                         <Border BorderBrush="Gray" BorderThickness="1" Height="300" Margin="0,0,0,5">

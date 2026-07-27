@@ -1,0 +1,15 @@
+<Window x:Class="SimpVid_Gist_WPF.RetryDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Transcript Notice"
+        Width="420" Height="200"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="ToolWindow"
+        ShowInTaskbar="False">
+    <StackPanel Margin="16">
+        <TextBlock x:Name="MessageText" TextWrapping="Wrap" Margin="0,0,0,16"/>
+        <Button x:Name="AutoRetryButton" Height="32" Margin="0,0,0,8" Click="AutoRetryButton_Click"/>
+        <Button x:Name="ManualRetryButton" Height="32" Click="ManualRetryButton_Click"/>
+    </StackPanel>
+</Window>
