@@ -246,6 +246,7 @@ namespace SimpVid_Gist_WPF
                 AiMode.KnowledgeGraph => zh ? "生成知识图表" : "Generate Knowledge Graph",
                 _ => zh ? "总结字幕" : "Summarize Transcript"
             };
+            ExportResultButton.Content = zh ? "导出 TXT" : "Export TXT";
             SummaryLabel.Text = zh ? "结果" : "Result";
 
             int langIdx = LanguageCodeComboBox.SelectedIndex;
