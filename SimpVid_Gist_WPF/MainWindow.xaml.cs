@@ -10,6 +10,8 @@ using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using YoutubeExplode;
 using YoutubeExplode.Videos.ClosedCaptions;
 
