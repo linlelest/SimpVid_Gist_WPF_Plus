@@ -24,6 +24,8 @@ namespace SimpVid_Gist_WPF
         private List<ClosedCaption> _captions = new List<ClosedCaption>();
         private string _fullTranscript = "";
         private bool _isExpanded = false;
+        private string _fullSummary = "";
+        private bool _isSummaryExpanded = false;
         private const int MaxPreviewLines = 5;
 
         private static readonly string[] AllLangCodes = { "en", "zh-Hans", "zh-Hant", "ja", "ko", "es", "fr", "ru" };
@@ -498,6 +500,7 @@ namespace SimpVid_Gist_WPF
 
             try
             {
+                string result;
                 switch (_currentMode)
                 {
                     case AiMode.Summary:
@@ -507,8 +510,7 @@ namespace SimpVid_Gist_WPF
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
                         SummaryTextBox.Text = zh ? "正在分析字幕并生成总结..." : "Analyzing transcript & generating summary...";
                         string prompt = BuildSummaryPrompt(wordLimit, targetLang);
-                        string result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
-                        SummaryTextBox.Text = result;
+                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
                         break;
                     }
                     case AiMode.Translation:
@@ -517,8 +519,7 @@ namespace SimpVid_Gist_WPF
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
                         SummaryTextBox.Text = zh ? "正在翻译字幕..." : "Translating transcript...";
                         string prompt = BuildTranslationPrompt(targetLang);
-                        string result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
-                        SummaryTextBox.Text = result;
+                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
                         break;
                     }
                     case AiMode.KnowledgeGraph:
@@ -527,17 +528,27 @@ namespace SimpVid_Gist_WPF
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
                         SummaryTextBox.Text = zh ? "正在生成知识图表..." : "Generating knowledge graph...";
                         string prompt = BuildKnowledgeGraphPrompt(targetLang);
-                        string result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
+                        result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt);
                         _lastMermaidCode = result;
-                        SummaryTextBox.Text = result;
+                        _fullSummary = result;
+                        _isSummaryExpanded = false;
+                        UpdateSummaryDisplay();
                         await RenderMermaidAsync(result);
-                        break;
+                        return;
                     }
+                    default:
+                        result = "";
+                        break;
                 }
+                _fullSummary = result;
+                _isSummaryExpanded = false;
+                UpdateSummaryDisplay();
             }
             catch (Exception ex)
             {
-                SummaryTextBox.Text = zh ? $"AI错误: {ex.Message}" : $"AI Error: {ex.Message}";
+                _fullSummary = zh ? $"AI错误: {ex.Message}" : $"AI Error: {ex.Message}";
+                _isSummaryExpanded = true;
+                UpdateSummaryDisplay();
             }
             finally
             {
@@ -610,13 +621,91 @@ namespace SimpVid_Gist_WPF
             }
         }
 
+        private void UpdateSummaryDisplay()
+        {
+            if (string.IsNullOrEmpty(_fullSummary))
+            {
+                SummaryTextBox.Text = "";
+                SummaryShowMoreButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var lines = _fullSummary.Split('\n');
+
+            if (lines.Length <= MaxPreviewLines)
+            {
+                SummaryTextBox.Text = _fullSummary;
+                SummaryShowMoreButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            SummaryShowMoreButton.Visibility = Visibility.Visible;
+            if (_isSummaryExpanded)
+            {
+                SummaryTextBox.Text = _fullSummary;
+                SummaryShowMoreButton.Content = "▲";
+            }
+            else
+            {
+                SummaryTextBox.Text = string.Join("\n", lines.Take(MaxPreviewLines)) + "\n...";
+                SummaryShowMoreButton.Content = "▼";
+            }
+        }
+
+        private void SummaryShowMoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            _isSummaryExpanded = !_isSummaryExpanded;
+            UpdateSummaryDisplay();
+        }
+
+        private void ExportResultButton_Click(object sender, RoutedEventArgs e)
+        {
+            bool zh = Localization.IsChinese;
+            string text = SummaryTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(text) || text.StartsWith(zh ? "正在" : "Generating") || text.StartsWith(zh ? "AI错误" : "AI Error"))
+            {
+                MessageBox.Show(zh ? "没有可导出的内容。" : "Nothing to export.", "", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                DefaultExt = "txt",
+                FileName = "AI_Result_" + DateTime.Now.ToString("yyyyMMdd_HHmmss")
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    File.WriteAllText(dialog.FileName, _fullSummary, Encoding.UTF8);
+                    MessageBox.Show(zh ? "文件已保存。" : "File saved.", "", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
         private async Task RenderMermaidAsync(string mermaidCode)
         {
-            try
-            {
-                await MermaidWebView.EnsureCoreWebView2Async(null);
+            bool zh = Localization.IsChinese;
 
-                string html = $@"<!DOCTYPE html>
+            string code = mermaidCode.Trim();
+            if (code.StartsWith("```"))
+            {
+                int start = code.IndexOf('\n');
+                if (start > 0) code = code[(start + 1)..];
+                int end = code.LastIndexOf("```");
+                if (end >= 0) code = code[..end];
+                code = code.Trim();
+            }
+
+            await MermaidWebView.EnsureCoreWebView2Async(null);
+
+            string html = $@"<!DOCTYPE html>
 <html><head><meta charset=""utf-8""/>
 <script src=""https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js""></script>
 <style>
@@ -627,23 +716,20 @@ svg{{max-width:none!important}}
 </style>
 </head><body>
 <div id=""graph"" class=""mermaid"">
-{mermaidCode}
+{code}
 </div>
 <script>
-mermaid.initialize({{startOnLoad:true,theme:'default',securityLevel:'loose'}});
+mermaid.initialize({{theme:'default',securityLevel:'loose'}});
+mermaid.run({{nodes:[document.querySelector('.mermaid')]}});
 let scale=1,tx=0,ty=0;
 const g=document.getElementById('graph');
-document.addEventListener('wheel',e=>{{e.preventDefault();let d=e.deltaY>0?.9:1.1;scale*=d;scale=Math.max(.1,Math.min(5,scale));g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}});
+document.addEventListener('wheel',e=>{{e.preventDefault();let d=e.deltaY>0?.9:1.1;scale*=d;scale=Math.max(.1,Math.min(5,scale));g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}},{{passive:false}});
 let drag=0,dx,dy;
 document.addEventListener('mousedown',e=>{{drag=1;dx=e.clientX-tx;dy=e.clientY-ty;}});
 document.addEventListener('mousemove',e=>{{if(drag){{tx=e.clientX-dx;ty=e.clientY-dy;g.style.transform=`scale($${{scale}}) translate($${{tx/scale}}px,$${{ty/scale}}px)`;g.style.transformOrigin='0 0';}}}});
 document.addEventListener('mouseup',()=>drag=0);
 </script></body></html>";
-                MermaidWebView.NavigateToString(html);
-            }
-            catch
-            {
-            }
+            MermaidWebView.NavigateToString(html);
         }
 
         private async void ExportSvgButton_Click(object sender, RoutedEventArgs e)
@@ -666,17 +752,21 @@ document.addEventListener('mouseup',()=>drag=0);
             {
                 try
                 {
-                    string svg = await MermaidWebView.CoreWebView2.ExecuteScriptAsync(
+                    string? svg = await MermaidWebView.CoreWebView2.ExecuteScriptAsync(
                         "(function(){var s=document.querySelector('.mermaid svg');return s?s.outerHTML:null;})()");
-                    if (svg != "null" && svg != null)
+                    if (!string.IsNullOrEmpty(svg) && svg != "null")
                     {
-                        svg = System.Text.Json.JsonSerializer.Deserialize<string>(svg) ?? "";
-                        File.WriteAllText(dialog.FileName, svg, Encoding.UTF8);
+                        string decoded = System.Text.Json.JsonSerializer.Deserialize<string>(svg) ?? "";
+                        File.WriteAllText(dialog.FileName, decoded, Encoding.UTF8);
                         bool zh = Localization.IsChinese;
                         MessageBox.Show(zh ? "SVG已导出。" : "SVG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    bool zh = Localization.IsChinese;
+                    MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
@@ -709,7 +799,11 @@ document.addEventListener('mouseup',()=>drag=0);
                     bool zh = Localization.IsChinese;
                     MessageBox.Show(zh ? "PNG已导出。" : "PNG exported.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    bool zh = Localization.IsChinese;
+                    MessageBox.Show(zh ? $"导出失败: {ex.Message}" : $"Export failed: {ex.Message}", "", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
