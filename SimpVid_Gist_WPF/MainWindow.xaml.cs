@@ -1,4 +1,5 @@
 ﻿using Microsoft.Win32;
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System.IO;
 using System.Linq;
