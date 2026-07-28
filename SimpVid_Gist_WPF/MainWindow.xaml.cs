@@ -320,21 +320,18 @@ namespace SimpVid_Gist_WPF
         }
 
         private void SummaryTargetLangComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            bool isCustom = (SummaryTargetLangComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "custom";
-            SummaryCustomLangTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
-        }
+            => UpdateCustomLangVisibility(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
 
         private void TranslationTargetLangComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            bool isCustom = (TranslationTargetLangComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "custom";
-            TranslationCustomLangTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
-        }
+            => UpdateCustomLangVisibility(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
 
         private void KnowledgeTargetLangComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+            => UpdateCustomLangVisibility(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
+
+        private static void UpdateCustomLangVisibility(ComboBox combo, TextBox customTextBox)
         {
-            bool isCustom = (KnowledgeTargetLangComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "custom";
-            KnowledgeCustomLangTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+            bool isCustom = (combo.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "custom";
+            customTextBox.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private string GetTargetLanguage(ComboBox comboBox, TextBox customTextBox)
@@ -364,40 +361,45 @@ namespace SimpVid_Gist_WPF
         }
 
         private void UpdateTranscriptDisplay()
+            => UpdateExpandableDisplay(TranscriptTextBox, ShowMoreButton, _fullTranscript, _isExpanded);
+
+        private void UpdateSummaryDisplay()
+            => UpdateExpandableDisplay(SummaryTextBox, SummaryShowMoreButton, _fullSummary, _isSummaryExpanded);
+
+        private static void UpdateExpandableDisplay(TextBox textBox, Button toggleButton, string fullContent, bool isExpanded)
         {
-            if (string.IsNullOrEmpty(_fullTranscript))
+            if (string.IsNullOrEmpty(fullContent))
             {
-                TranscriptTextBox.Text = "";
-                ShowMoreButton.Visibility = Visibility.Collapsed;
+                textBox.Text = "";
+                toggleButton.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            var lines = _fullTranscript.Split('\n');
+            var lines = fullContent.Split('\n');
 
             if (lines.Length <= MaxPreviewLines)
             {
-                TranscriptTextBox.Text = _fullTranscript;
-                ShowMoreButton.Visibility = Visibility.Collapsed;
+                textBox.Text = fullContent;
+                toggleButton.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            ShowMoreButton.Visibility = Visibility.Visible;
-            if (_isExpanded)
+            toggleButton.Visibility = Visibility.Visible;
+            if (isExpanded)
             {
-                TranscriptTextBox.Text = _fullTranscript;
-                ShowMoreButton.Content = "▲";
+                textBox.Text = fullContent;
+                toggleButton.Content = "▲";
             }
             else
             {
-                TranscriptTextBox.Text = string.Join("\n", lines.Take(MaxPreviewLines)) + "\n...";
-                ShowMoreButton.Content = "▼";
+                textBox.Text = string.Join("\n", lines.Take(MaxPreviewLines)) + "\n...";
+                toggleButton.Content = "▼";
             }
         }
 
         private void ShowMoreButton_Click(object sender, RoutedEventArgs e)
         {
             _isExpanded = !_isExpanded;
-            ShowMoreButton.Content = _isExpanded ? "▲" : "▼";
             UpdateTranscriptDisplay();
             UpdateLayout();
         }
@@ -502,16 +504,7 @@ namespace SimpVid_Gist_WPF
                         try
                         {
                             var fallbackJson = await noProxyClient.GetStringAsync($"https://youtubetranscript.com/api?vid={ExtractYouTubeVideoId(videoInput)}&lang={targetLangCode}");
-                            using var doc = JsonDocument.Parse(fallbackJson);
-                            var fbCaptions = new List<ClosedCaption>();
-                            foreach (var item in doc.RootElement.EnumerateArray())
-                            {
-                                string text = item.GetProperty("text").GetString() ?? "";
-                                double start = item.GetProperty("start").GetDouble();
-                                double duration = item.GetProperty("duration").GetDouble();
-                                fbCaptions.Add(new ClosedCaption(text, TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(duration), Array.Empty<ClosedCaptionPart>()));
-                            }
-                            captions = fbCaptions;
+                            captions = ParseTranscriptJson(fallbackJson);
                         }
                         catch { /* final fallback failed */ }
                     }
@@ -801,37 +794,6 @@ namespace SimpVid_Gist_WPF
             }
         }
 
-        private void UpdateSummaryDisplay()
-        {
-            if (string.IsNullOrEmpty(_fullSummary))
-            {
-                SummaryTextBox.Text = "";
-                SummaryShowMoreButton.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            var lines = _fullSummary.Split('\n');
-
-            if (lines.Length <= MaxPreviewLines)
-            {
-                SummaryTextBox.Text = _fullSummary;
-                SummaryShowMoreButton.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            SummaryShowMoreButton.Visibility = Visibility.Visible;
-            if (_isSummaryExpanded)
-            {
-                SummaryTextBox.Text = _fullSummary;
-                SummaryShowMoreButton.Content = "▲";
-            }
-            else
-            {
-                SummaryTextBox.Text = string.Join("\n", lines.Take(MaxPreviewLines)) + "\n...";
-                SummaryShowMoreButton.Content = "▼";
-            }
-        }
-
         private void SummaryShowMoreButton_Click(object sender, RoutedEventArgs e)
         {
             _isSummaryExpanded = !_isSummaryExpanded;
@@ -1017,13 +979,7 @@ document.addEventListener('mouseup',function(){{drag=0;}});
             }
             else
             {
-                _normalBounds = new Rect(Left, Top, Width, Height);
-                _isMaximized = true;
-                var workArea = SystemParameters.WorkArea;
-                Left = workArea.Left;
-                Top = workArea.Top;
-                Width = workArea.Width;
-                Height = workArea.Height;
+                ApplyMaximizeBounds();
             }
         }
 
@@ -1031,18 +987,23 @@ document.addEventListener('mouseup',function(){{drag=0;}});
         {
             if (WindowState == WindowState.Maximized && !_isMaximized)
             {
-                _normalBounds = new Rect(Left, Top, Width, Height);
-                _isMaximized = true;
-                var workArea = SystemParameters.WorkArea;
-                Left = workArea.Left;
-                Top = workArea.Top;
-                Width = workArea.Width;
-                Height = workArea.Height;
+                ApplyMaximizeBounds();
             }
             else if (WindowState == WindowState.Normal && _isMaximized)
             {
                 _isMaximized = false;
             }
+        }
+
+        private void ApplyMaximizeBounds()
+        {
+            _normalBounds = new Rect(Left, Top, Width, Height);
+            _isMaximized = true;
+            var workArea = SystemParameters.WorkArea;
+            Left = workArea.Left;
+            Top = workArea.Top;
+            Width = workArea.Width;
+            Height = workArea.Height;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -1249,11 +1210,10 @@ document.addEventListener('mouseup',function(){{drag=0;}});
         private async Task<List<ClosedCaption>> GetTranscriptFallbackAsync(string videoInput, string langCode)
         {
             bool zh = Localization.IsChinese;
-            var result = new List<ClosedCaption>();
             string videoId = ExtractYouTubeVideoId(videoInput);
 
             if (string.IsNullOrWhiteSpace(videoId) || videoId.Length < 10)
-                return result;
+                return new List<ClosedCaption>();
 
             string fallbackUrl = $"https://youtubetranscript.com/api?vid={videoId}&lang={langCode}";
             TranscriptTextBox.Text = zh ? "正在通过备用接口获取字幕..." : "Fetching transcript via fallback API...";
@@ -1262,22 +1222,25 @@ document.addEventListener('mouseup',function(){{drag=0;}});
             response.EnsureSuccessStatusCode();
 
             string json = await response.Content.ReadAsStringAsync();
+            return ParseTranscriptJson(json);
+        }
+
+        private static List<ClosedCaption> ParseTranscriptJson(string json)
+        {
+            var captions = new List<ClosedCaption>();
             using var doc = JsonDocument.Parse(json);
             foreach (var item in doc.RootElement.EnumerateArray())
             {
                 string text = item.GetProperty("text").GetString() ?? "";
                 double start = item.GetProperty("start").GetDouble();
                 double duration = item.GetProperty("duration").GetDouble();
-
-                result.Add(new ClosedCaption(
+                captions.Add(new ClosedCaption(
                     text,
                     TimeSpan.FromSeconds(start),
                     TimeSpan.FromSeconds(duration),
-                    Array.Empty<ClosedCaptionPart>()
-                ));
+                    Array.Empty<ClosedCaptionPart>()));
             }
-
-            return result;
+            return captions;
         }
 
         // ===== Layout mode management =====
@@ -1311,10 +1274,9 @@ document.addEventListener('mouseup',function(){{drag=0;}});
                 {
                     SubtitleSectionPanel.Margin = new Thickness(16);
                     AiSectionPanel.Margin = new Thickness(16);
-                    Grid.SetColumn(SubtitleSectionPanel, 0);
-                    Grid.SetColumn(AiSectionPanel, 2);
-                    SplitLayoutGrid.Children.Add(SubtitleSectionPanel);
-                    SplitLayoutGrid.Children.Add(AiSectionPanel);
+                    // In Split mode, panels live inside their own ScrollViewer in each grid column
+                    SubtitleScrollViewer.Content = SubtitleSectionPanel;
+                    AiScrollViewer.Content = AiSectionPanel;
                     SplitLayoutGrid.Visibility = Visibility.Visible;
                     ScrollLayoutViewer.Visibility = Visibility.Collapsed;
                     Logger.Log("Split layout applied");

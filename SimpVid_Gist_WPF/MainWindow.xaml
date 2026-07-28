@@ -165,8 +165,8 @@
                         </ControlTemplate>
                     </GridSplitter.Template>
                 </GridSplitter>
-                <ScrollViewer>
-                    <StackPanel x:Name="SubtitleSectionPanel" Grid.Column="0" Margin="0">
+                <ScrollViewer x:Name="SubtitleScrollViewer" Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="SubtitleSectionPanel" Margin="0">
                         <GroupBox x:Name="TranscriptGroupBox" Header="Transcript">
                             <StackPanel>
                             
@@ -200,8 +200,8 @@
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
-                <ScrollViewer Grid.Column="2">
-                    <StackPanel x:Name="AiSectionPanel" Grid.Column="2" Margin="0">
+                <ScrollViewer x:Name="AiScrollViewer" Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="AiSectionPanel" Margin="0">
                         <GroupBox x:Name="SummarizationGroupBox" Header="Summarization" Margin="0,10,0,0">
                             <StackPanel>
                                 <TextBlock x:Name="BaseUrlLabel" Margin="0,0,0,5" TextWrapping="Wrap" FontWeight="SemiBold">AI Base URL (API Endpoint)</TextBlock>
