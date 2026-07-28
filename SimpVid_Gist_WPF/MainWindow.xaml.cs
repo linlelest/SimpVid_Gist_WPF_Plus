@@ -599,6 +599,10 @@ namespace SimpVid_Gist_WPF
 
             try
             {
+                SummaryTextBox.Text = "";
+                SummaryShowMoreButton.Visibility = Visibility.Collapsed;
+                _fullSummary = "";
+
                 string result;
                 switch (_currentMode)
                 {
@@ -607,19 +611,12 @@ namespace SimpVid_Gist_WPF
                         int wordLimit = GetWordCountLimit();
                         string targetLang = GetTargetLanguage(SummaryTargetLangComboBox, SummaryCustomLangTextBox);
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
-                        SummaryTextBox.Text = "";
-                        SummaryShowMoreButton.Visibility = Visibility.Collapsed;
-                        _fullSummary = "";
                         string prompt = BuildSummaryPrompt(wordLimit, targetLang);
                         result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt,
-                            stream: true,
                             onChunk: chunk =>
                             {
                                 _fullSummary += chunk;
-                                Dispatcher.Invoke(() =>
-                                {
-                                    SummaryTextBox.Text = _fullSummary;
-                                });
+                                Dispatcher.Invoke(() => SummaryTextBox.Text = _fullSummary);
                             });
                         break;
                     }
@@ -627,19 +624,12 @@ namespace SimpVid_Gist_WPF
                     {
                         string targetLang = GetTargetLanguage(TranslationTargetLangComboBox, TranslationCustomLangTextBox);
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
-                        SummaryTextBox.Text = "";
-                        SummaryShowMoreButton.Visibility = Visibility.Collapsed;
-                        _fullSummary = "";
                         string prompt = BuildTranslationPrompt(targetLang);
                         result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt,
-                            stream: true,
                             onChunk: chunk =>
                             {
                                 _fullSummary += chunk;
-                                Dispatcher.Invoke(() =>
-                                {
-                                    SummaryTextBox.Text = _fullSummary;
-                                });
+                                Dispatcher.Invoke(() => SummaryTextBox.Text = _fullSummary);
                             });
                         break;
                     }
@@ -647,16 +637,9 @@ namespace SimpVid_Gist_WPF
                     {
                         string targetLang = GetTargetLanguage(KnowledgeTargetLangComboBox, KnowledgeCustomLangTextBox);
                         if (string.IsNullOrWhiteSpace(targetLang)) targetLang = zh ? "zh" : "en";
-                        SummaryTextBox.Text = "";
-                        SummaryShowMoreButton.Visibility = Visibility.Collapsed;
-                        _fullSummary = "";
                         string prompt = BuildKnowledgeGraphPrompt(targetLang);
                         result = await CallAiAsync(apiKey, transcript, apiUrl, modelName, prompt,
-                            stream: true,
-                            onChunk: chunk =>
-                            {
-                                _fullSummary += chunk;
-                            });
+                            onChunk: chunk => _fullSummary += chunk);
                         _lastMermaidCode = result;
                         _isSummaryExpanded = false;
                         UpdateSummaryDisplay();
@@ -705,7 +688,7 @@ namespace SimpVid_Gist_WPF
             return $"You are an expert at creating mind maps. Analyze the following transcript and create a comprehensive mind map in Mermaid.js format. Use the 'mindmap' diagram type.\nOutput language: {targetLang}\n\nRequirements:\n1. Start with 'mindmap' as the root\n2. Capture the MAIN topic as the central root node\n3. Break down into logical subtopics, sub-subtopics, and key details\n4. Use clear, concise labels for each node\n5. Organize hierarchically like a mind map — do NOT miss any important information or detail\n6. Be accurate and precise\n7. Output language must be {targetLang}\n\nCRITICAL: Output ONLY valid Mermaid.js mindmap code. No explanations, no markdown fences, no extra text. Start directly with 'mindmap'.";
         }
 
-        private async Task<string> CallAiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, string systemPrompt, bool stream = false, Action<string> onChunk = null)
+        private async Task<string> CallAiAsync(string apiKey, string transcriptContent, string apiUrl, string modelName, string systemPrompt, Action<string> onChunk = null)
         {
             bool zh = Localization.IsChinese;
 
@@ -720,11 +703,9 @@ namespace SimpVid_Gist_WPF
                     new JsonObject { ["role"] = "system", ["content"] = systemPrompt },
                     new JsonObject { ["role"] = "user", ["content"] = transcriptContent }
                 },
-                ["temperature"] = 0.5
+                ["temperature"] = 0.5,
+                ["stream"] = true
             };
-
-            if (stream)
-                requestBody["stream"] = true;
 
             string jsonPayload = requestBody.ToJsonString();
 
@@ -733,64 +714,51 @@ namespace SimpVid_Gist_WPF
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
                 request.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-                HttpResponseMessage response = await _httpClient.SendAsync(request, stream ? HttpCompletionOption.ResponseHeadersRead : HttpCompletionOption.ResponseContentRead);
-                string responseString = await response.Content.ReadAsStringAsync();
+                HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
 
                 if (!response.IsSuccessStatusCode)
-                    throw new Exception($"({response.StatusCode}) Details: {responseString}");
-
-                if (stream)
                 {
-                    var fullBuilder = new StringBuilder();
-                    using var streamResponse = await response.Content.ReadAsStreamAsync();
-                    using var reader = new StreamReader(streamResponse);
+                    string errorDetails = await response.Content.ReadAsStringAsync();
+                    throw new Exception($"({response.StatusCode}) Details: {errorDetails}");
+                }
 
-                    while (!reader.EndOfStream)
+                var fullBuilder = new StringBuilder();
+                using var streamResponse = await response.Content.ReadAsStreamAsync();
+                using var reader = new StreamReader(streamResponse);
+
+                while (!reader.EndOfStream)
+                {
+                    var line = await reader.ReadLineAsync();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    if (line.StartsWith("data: "))
                     {
-                        var line = await reader.ReadLineAsync();
-                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        var data = line.Substring(6);
+                        if (data.Trim() == "[DONE]") break;
 
-                        if (line.StartsWith("data: "))
+                        try
                         {
-                            var data = line.Substring(6);
-                            if (data.Trim() == "[DONE]") break;
-
-                            try
+                            using var doc = JsonDocument.Parse(data);
+                            var choices = doc.RootElement.GetProperty("choices");
+                            if (choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
                             {
-                                using var doc = JsonDocument.Parse(data);
-                                var choices = doc.RootElement.GetProperty("choices");
-                                if (choices.ValueKind == JsonValueKind.Array && choices.GetArrayLength() > 0)
+                                var delta = choices[0].GetProperty("delta");
+                                if (delta.TryGetProperty("content", out var contentProp))
                                 {
-                                    var delta = choices[0].GetProperty("delta");
-                                    if (delta.TryGetProperty("content", out var contentProp))
-                                    {
-                                        string chunk = contentProp.GetString() ?? "";
-                                        fullBuilder.Append(chunk);
-                                        onChunk?.Invoke(chunk);
-                                    }
+                                    string chunk = contentProp.GetString() ?? "";
+                                    fullBuilder.Append(chunk);
+                                    onChunk?.Invoke(chunk);
                                 }
                             }
-                            catch { /* skip malformed chunk */ }
                         }
+                        catch { /* skip malformed chunk */ }
                     }
+                }
 
-                    string fullText = fullBuilder.ToString().Trim();
-                    return string.IsNullOrEmpty(fullText)
-                        ? (zh ? "AI返回了空响应。" : "AI returned an empty response.")
-                        : fullText;
-                }
-                else
-                {
-                    using (JsonDocument doc = JsonDocument.Parse(responseString))
-                    {
-                        JsonElement root = doc.RootElement;
-                        string? rawSummary = root.GetProperty("choices")[0]
-                                                .GetProperty("message")
-                                                .GetProperty("content")
-                                                .GetString();
-                        return rawSummary?.Trim() ?? (zh ? "AI返回了空响应。" : "AI returned an empty response.");
-                    }
-                }
+                string fullText = fullBuilder.ToString().Trim();
+                return string.IsNullOrEmpty(fullText)
+                    ? (zh ? "AI返回了空响应。" : "AI returned an empty response.")
+                    : fullText;
             }
         }
 
@@ -804,7 +772,7 @@ namespace SimpVid_Gist_WPF
         {
             bool zh = Localization.IsChinese;
             string text = SummaryTextBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(text) || text.StartsWith(zh ? "正在" : "Generating") || text.StartsWith(zh ? "AI错误" : "AI Error"))
+            if (string.IsNullOrWhiteSpace(text) || text.StartsWith(zh ? "AI错误" : "AI Error"))
             {
                 MessageBox.Show(zh ? "没有可导出的内容。" : "Nothing to export.", "", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
