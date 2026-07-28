@@ -40,7 +40,6 @@ namespace SimpVid_Gist_WPF
         private enum LayoutMode { Split, Scroll }
         private LayoutMode _currentLayout = LayoutMode.Scroll;
         private bool _isAnimatingScroll = false;
-        private int _currentScrollSection = 0;
         private static readonly string LayoutModeFile =
             System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                                    "SimpVid Gist", "layout_mode.txt");
@@ -83,15 +82,8 @@ namespace SimpVid_Gist_WPF
                 CheckFirstRun();
                 Logger.Log("CheckFirstRun done");
 
-                PopulateExportFormats();
-                PopulateSummaryLengths();
-                ModeComboBox.SelectedIndex = 0;
                 SetInitialTargetLangSelections();
-                ApplyLanguage();
-                Logger.Log("ApplyLanguage (1st) done");
-
                 LoadFromAppData();
-                BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
 
                 BaseUrlTextBox.TextChanged += (_, _) => AutoSaveConfig();
                 ModelTextBox.TextChanged += (_, _) => AutoSaveConfig();
@@ -104,7 +96,7 @@ namespace SimpVid_Gist_WPF
                 Logger.Log("ApplyLayoutMode done");
 
                 ApplyLanguage();
-                Logger.Log("ApplyLanguage (2nd) done");
+                Logger.Log("ApplyLanguage done");
 
                 // Delay hint popup until window is fully loaded
                 Loaded += (_, _) =>
@@ -226,6 +218,7 @@ namespace SimpVid_Gist_WPF
             ExportButton.Content = zh ? "导出" : "Export";
 
             SummarizationGroupBox.Header = zh ? "AI处理" : "AI Processing";
+            TranscriptGroupBox.Header = zh ? "字幕" : "Transcript";
             BaseUrlLabel.Text = zh ? "AI接口地址" : "AI Base URL (API Endpoint)";
             BaseUrlPlaceholder.Text = zh ? "例: https://api.openai.com/v1" : "e.g. https://api.openai.com/v1";
             BaseUrlPlaceholder.Visibility = string.IsNullOrEmpty(BaseUrlTextBox.Text) ? Visibility.Visible : Visibility.Collapsed;
@@ -1335,7 +1328,6 @@ document.addEventListener('mouseup',function(){{drag=0;}});
                     ScrollLayoutViewer.Visibility = Visibility.Visible;
                     SplitLayoutGrid.Visibility = Visibility.Collapsed;
                     ScrollLayoutViewer.ScrollToTop();
-                    _currentScrollSection = 0;
                     Logger.Log("Scroll layout applied");
                 }
 
@@ -1456,7 +1448,6 @@ document.addEventListener('mouseup',function(){{drag=0;}});
             anim.Completed += (s, _) =>
             {
                 _isAnimatingScroll = false;
-                _currentScrollSection = targetOffset < 1 ? 0 : 1;
             };
             ScrollViewerAnimationBehavior.SetVerticalOffset(ScrollLayoutViewer, ScrollLayoutViewer.VerticalOffset);
             ScrollLayoutViewer.BeginAnimation(ScrollViewerAnimationBehavior.VerticalOffsetProperty, anim);

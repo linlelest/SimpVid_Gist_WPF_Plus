@@ -167,7 +167,7 @@
                 </GridSplitter>
                 <ScrollViewer>
                     <StackPanel x:Name="SubtitleSectionPanel" Grid.Column="0" Margin="0">
-                        <GroupBox Header="Transcript">
+                        <GroupBox x:Name="TranscriptGroupBox" Header="Transcript">
                             <StackPanel>
                             
                             <TextBlock x:Name="UrlLabel" Margin="0,0,0,10" TextWrapping="Wrap" FontWeight="SemiBold">Video URL or ID</TextBlock>
@@ -303,7 +303,7 @@
             </Grid>
 
             <ScrollViewer x:Name="ScrollLayoutViewer"
-                          VerticalScrollBarVisibility="Hidden"
+                          VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           PreviewMouseWheel="ScrollLayout_PreviewMouseWheel"
                           Visibility="Collapsed">
