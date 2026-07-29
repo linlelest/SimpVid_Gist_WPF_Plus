@@ -4,11 +4,13 @@ A lightweight, universal YouTube video transcript extractor and AI-powered summa
 
 Credit: Gemini 3.5 Thinking & RationalZombie
 
+**Plus version** Credit: GLM 5.2; DeepSeek v4 pro/flash; RationalZombie & linlelest 
+
 Lowest compatible OS: `Windows 10 1607`
 
 Sample on `Windows 11`:
 
-<img width="392" height="664" alt="截屏2026-07-26 16 32 19" src="https://github.com/user-attachments/assets/e3a18dda-c6cb-42f6-9f21-3d7e5993a17b" />
+<img width="1067" height="1023" alt="截屏2026-07-28 08 10 18" src="https://github.com/user-attachments/assets/bd6f704b-90a8-4c46-82ed-8527de8817c6" />
 
 
 ## Introduction
@@ -24,6 +26,17 @@ Sample on `Windows 11`:
 - **Secure Key Management**: The API Key input field utilizes a `PasswordBox` implementation to prevent privacy leaks from screen recordings or onlookers.
 - **Smooth Native Experience**: Built entirely with asynchronous (Async/Await) network requests, ensuring the UI remains completely responsive while loading large transcripts or waiting for AI responses.
 - **Optimized Layout**: Text boxes feature built-in Text Wrapping and scrollbar support to flawlessly handle ultra-long texts without clipping.
+
+
+## Plus Features
+
+- Landscape & Portrait views
+- Chinese & English Interface/AI prompt support
+- Three modes:
+ - AI Summary
+ - AI Translation
+ - AI Mindmap (Currently implementing)
+- Supports `.srt` caption exporting.
 
 ## UI Overview
 
