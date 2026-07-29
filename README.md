@@ -33,9 +33,9 @@ Sample on `Windows 11`:
 - Landscape & Portrait views
 - Chinese & English Interface/AI prompt support
 - Three modes:
- - AI Summary
- - AI Translation
- - AI Mindmap (Currently implementing)
+  - AI Summary
+  - AI Translation
+  - AI Mindmap (Currently implementing)
 - Supports `.srt` caption exporting.
 
 ## UI Overview
